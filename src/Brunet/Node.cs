@@ -493,8 +493,17 @@ namespace Brunet
         };
         //every period +/- half a period, run this event
         var fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(torun, _heart_period, _heart_period / 2 + 1);
+        bool disconnected = false;
         lock( _sync ) {
-          _heartbeat_handlers[ value ] = fe;
+          if(_con_state == ConnectionState.Disconnected) {
+            disconnected = true;
+          } else {
+            _heartbeat_handlers[ value ] = fe;
+          }
+        }
+        if(disconnected) {
+          fe.TryCancel();
+          throw new Exception("Node is disconnected");
         }
       }
 
