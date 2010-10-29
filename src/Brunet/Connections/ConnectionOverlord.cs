@@ -113,7 +113,7 @@ namespace Brunet.Connections {
       }
 
       Linker l = new Linker(_node, resp.Target.Address, transports,
-          resp.ConnectionType, resp.Token);
+          resp.ConnectionType, resp.Token, return_path.ToString());
       l.FinishEvent += LinkerEndHandler;
       _node.TaskQueue.Enqueue( l );
       return true;
@@ -162,7 +162,7 @@ namespace Brunet.Connections {
        * the Connector starts.  If it returns true, the Connector
        * will finish immediately without sending an ConnectToMessage
        */
-      Linker l = new Linker(_node, target, null, ConnectionType, token);
+      Linker l = new Linker(_node, target, null, ConnectionType, token, sender.ToString());
       object link_task = l.Task;
       Connector.AbortCheck abort = delegate(Connector c) {
         bool stop = false;

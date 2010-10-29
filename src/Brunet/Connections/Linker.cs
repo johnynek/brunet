@@ -364,12 +364,15 @@ namespace Brunet.Connections
       protected readonly Address _local;
       protected readonly Address _target;
       protected readonly ConnectionType _ct;
+      protected readonly string _task_diff;
 
-      public LinkerTask(Address local, Address target, string ct) {
+      public LinkerTask(Address local, Address target, string ct, string task_diff) {
         _local = local;
         _target = target;
         _ct = Connection.StringToMainType(ct);
+        _task_diff = task_diff;
       }
+
       override public int GetHashCode() {
         int code;
         if( _target != null ) {
@@ -380,17 +383,22 @@ namespace Brunet.Connections
         }
         return code;
       }
+
       override public bool Equals(object o) {
         LinkerTask lt = o as LinkerTask;
-        bool eq = false;
-        if( lt != null ) {
-          eq = (lt._local.Equals( this._local) )
-              && (lt._ct.Equals( this._ct) );
-          if( _target != null ) {
-            eq &= _target.Equals( lt._target );
-          }
+        if(lt == null) {
+          return false;
+        } else if(false == lt._local.Equals(_local) ||
+            false == lt._ct.Equals(_ct) ||
+            false == lt._task_diff.Equals(_task_diff))
+        {
+          return false;
+        } else if((_target != null && false == _target.Equals(lt._target)) ||
+           (lt._target != null && false == lt._target.Equals(_target)))
+        {
+          return false;
         }
-        return eq;
+        return true;
       }
     }
 
@@ -409,9 +417,14 @@ namespace Brunet.Connections
      * @param t ConnectionType string of the new connection
      * @token unique token to associate the different connection setup messages
      */
-    public Linker(Node local, Address target, ICollection target_list, string ct, string token)
+    public Linker(Node local, Address target, ICollection target_list, string ct, string token) :
+      this(local, target, target_list, ct, token, string.Empty)
     {
-      _task = new LinkerTask(local.Address, target, ct);
+    }
+
+    public Linker(Node local, Address target, ICollection target_list, string ct, string token, string task_diff)
+    {
+      _task = new LinkerTask(local.Address, target, ct, task_diff);
       _local_n = local;
       _active_lps_count = 0;
       //this TaskQueue starts new tasks in the announce thread of the node.
@@ -479,7 +492,7 @@ namespace Brunet.Connections
     override public void Start() {
 #if LINK_DEBUG
       if (BU.ProtocolLog.LinkDebug.Enabled) {
-        BU.ProtocolLog.Write(BU.ProtocolLog.LinkDebug, String.Format("{0}, Linker({1}).Start at: {2}", _local_n.Address, _lid, DateTime.UtcNow));
+        BU.ProtocolLog.Write(BU.ProtocolLog.LinkDebug, String.Format("{0}, Linker({1}).Start at: {2}", _local_n.Address, this, DateTime.UtcNow));
       }
 #endif
       //Try to set _started to 1, if already set to one, throw an exception
