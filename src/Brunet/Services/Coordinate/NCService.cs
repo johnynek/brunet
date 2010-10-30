@@ -161,7 +161,13 @@ namespace Brunet.Services.Coordinate {
               _rpc.SendResult(req_state, l);
             }
         };
-        _rpc.Invoke(next_closest, result, "ncserver.ComputePathLatencyTo", a.ToString());
+        try {
+          _rpc.Invoke(next_closest, result, "ncserver.ComputePathLatencyTo", a.ToString());
+        }
+        catch(Exception x) {
+          //We must always return from an RPC call, and this is one:
+          _rpc.SendResult(req_state, x);
+        }
       }
       else {
         //We are the end of the line, send the result:
