@@ -837,7 +837,7 @@ namespace Brunet.Transport
       var ss = new SendState(sender.ID, sender.RemoteID, p, sender.End);
       if( false == _send_server.Add(ss) ) {
         //This is a transient error, the queue is full:
-        throw new Brunet.Messaging.SendException(true, "UDP Queue full, can't send"); 
+        throw new EdgeException(true, "UDP Queue full, can't send"); 
       }
     }
 

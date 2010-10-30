@@ -761,7 +761,7 @@ public class AHHandler : IDataHandler {
       try {
         next_con.Send(new_packet);
       }
-      catch(EdgeException) {
+      catch(SendException) {
         //Just drop the packet...
       }
     }
