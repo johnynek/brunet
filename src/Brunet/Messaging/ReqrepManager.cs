@@ -836,6 +836,17 @@ public class ReqrepManager : SimpleSource, IDataHandler {
       rs.Send();
       return rs.RequestID;
     }
+    catch(SendException sx) {
+      if( sx.IsTransient ) {
+        //I guess we will just try to resend again in the future:
+        return rs.RequestID;
+      }
+      else {
+        //This is certainly going to fail, so fail now:
+        StopRequest(rs.RequestID, reply);
+        throw;
+      }
+    }
     catch {
       //Clean up:
       StopRequest(rs.RequestID, reply);
