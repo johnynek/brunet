@@ -185,6 +185,10 @@ namespace Brunet
             "Exception in heartbeat event : {0}", x));
         }
       }
+      public void OnFuzzy(DateTime runtime) {
+        //Put us into the node's queue so we run in that thread
+        _n.EnqueueAction(this);
+      }
    }
 
     protected class LogAction : IAction {
@@ -486,13 +490,11 @@ namespace Brunet
     ///after each HeartPeriod, the HeartBeat event is fired
     public event EventHandler HeartBeatEvent {
       add {
-        IAction hba = new HeartBeatAction(this, value);
-        Action<DateTime> torun = delegate(DateTime now) {
-          //Execute the code in the node's thread
-          this.EnqueueAction(hba);
-        };
+        var hba = new HeartBeatAction(this, value);
         //every period +/- half a period, run this event
-        var fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(torun, _heart_period, _heart_period / 2 + 1);
+        var fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(hba.OnFuzzy,
+                                                         _heart_period,
+                                                         _heart_period / 2 + 1);
         bool disconnected = false;
         lock( _sync ) {
           if(_con_state == ConnectionState.Disconnected) {
