@@ -150,6 +150,47 @@ namespace Brunet.Symphony
     
     }
 
+// /////////////////////////////
+// IActions (for putting things in the ActionQueue 
+// /////////////////////////////
+
+    protected class UpdateNeighborAction : IAction {
+      public readonly StructuredNode Node;
+      public readonly Connection Neighbor;
+      public readonly string ConType;
+
+      public UpdateNeighborAction(StructuredNode n,
+                                  string contype,
+                                  Connection neigh) {
+        Node = n;
+        ConType = contype;
+        Neighbor = neigh;
+      }
+
+      public void Start() {
+        try {
+          //This edge could have been closed, which will
+          //cause the Rpc to throw an exception
+          Node.CallGetStatus(ConType, Neighbor);
+        }
+        catch(EdgeClosedException) {
+          //Just ignore this connection if it is closed
+        }
+        catch(EdgeException ex) {
+          if( !ex.IsTransient ) {
+            //Make sure this Edge is closed before going forward
+            //@TODO this is not safe, EdgeException should keep a ref to the edge that threw
+            Neighbor.State.Edge.Close();
+          }
+        }
+        catch(Exception x) {
+          if(ProtocolLog.Exceptions.Enabled) {
+              ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
+                "CallGetStatus() on {0} failed: {1}", Neighbor, x));
+          }
+        }
+      }
+    }
 
 // /////////////////////////////
 // Methods 
@@ -409,7 +450,7 @@ namespace Brunet.Symphony
     /**
      * Call the GetStatus method on the given connection
      */
-    protected void CallGetStatus(string type, Connection c) {
+    public void CallGetStatus(string type, Connection c) {
       if( c != null ) {
         StatusMessage req = GetStatus(type, c.Address);
         Channel stat_res = new Channel(1);
@@ -449,58 +490,18 @@ namespace Brunet.Symphony
        * Get the data we need about this connection:
        */
       Connection con = cea.Connection;
-      string con_type_string = con.ConType;
       AHAddress new_address = (AHAddress)con.Address;
-
       /*
        * Update the left neighbor:
        */
       Connection lc = structs.GetLeftNeighborOf(new_address);
-      try {
-        //This edge could ahve been closed, which will
-        //cause the Rpc to throw an exception
-        CallGetStatus(con_type_string, lc);
-      }
-      catch(EdgeClosedException) {
-        //Just ignore this connection if it is closed
-      }
-      catch(EdgeException ex) {
-        if( !ex.IsTransient ) {
-          //Make sure this Edge is closed before going forward
-          lc.State.Edge.Close();
-        }
-      }
-      catch(Exception x) {
-        if(ProtocolLog.Exceptions.Enabled) {
-            ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
-              "CallGetStatus(left) on {0} failed: {1}", lc, x));
-        }
-      }
+      EnqueueAction( new UpdateNeighborAction(this, con.ConType, lc) );
       /*
        * Update the right neighbor:
        */
       Connection rc = structs.GetRightNeighborOf(new_address);
-      try {
-        if( (lc != rc) ) {
-          //This edge could ahve been closed, which will
-          //cause the Rpc to throw an exception
-          CallGetStatus(con_type_string, rc);
-        }
-      }
-      catch(EdgeClosedException) {
-        //Just ignore this connection if it is closed
-      }
-      catch(EdgeException ex) {
-        if( !ex.IsTransient ) {
-          //Make sure this Edge is closed before going forward
-          rc.State.Edge.Close();
-        }
-      }
-      catch(Exception x) {
-        if(ProtocolLog.Exceptions.Enabled) {
-            ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
-              "CallGetStatus(right) on {0} failed: {1}", rc, x));
-        }
+      if( lc != rc ) {
+        EnqueueAction( new UpdateNeighborAction(this, con.ConType, rc) );
       }
     }
 
