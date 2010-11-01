@@ -171,7 +171,13 @@ namespace Brunet.Connections
       Channel results = new Channel();
       results.EnqueueEvent += this.EnqueueHandler;
       results.CloseEvent += this.QueueCloseHandler;
-      rpc.Invoke(_sender, results, "sys:ctm.ConnectTo", _ctm.ToDictionary() );
+      try {
+        rpc.Invoke(_sender, results, "sys:ctm.ConnectTo", _ctm.ToDictionary() );
+      }
+      catch {
+        //Looks like the _sender had some problem:
+        QueueCloseHandler(null, null);
+      }
     }
 
     /**

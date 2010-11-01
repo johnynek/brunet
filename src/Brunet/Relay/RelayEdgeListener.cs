@@ -261,7 +261,8 @@ namespace Brunet.Relay {
       };
 
       ISender s = new AHExactSender(_node, teca.RelayTA.Target);
-      _node.Rpc.Invoke(s, chan, "tunnel.RequestSync");
+      try { _node.Rpc.Invoke(s, chan, "tunnel.RequestSync"); }
+      catch { chan.Close(); }
     }
 
     /// <summary>Common code to Create an outgoing edge.</summary>
@@ -338,8 +339,9 @@ namespace Brunet.Relay {
 
       foreach(RelayEdge te in _tunnels) {
         IDictionary sync_message = _ito.GetSyncMessage(te.Overlap, _node.Address, cons);
-        Channel chan = new Channel(1);
-        _node.Rpc.Invoke(te, chan, "tunnel.Sync", sync_message);
+        //Do our best here to send a sync message
+        try { _node.Rpc.Invoke(te, null, "tunnel.Sync", sync_message); }
+        catch {}
       }
     }
 
@@ -371,8 +373,9 @@ namespace Brunet.Relay {
         }
 
         IDictionary sync_message = _ito.GetSyncMessage(te.Overlap, _node.Address, cons);
-        Channel chan = new Channel(1);
-        _node.Rpc.Invoke(te, chan, "tunnel.Sync", sync_message);
+        //Just do our best here:
+        try { _node.Rpc.Invoke(te, null, "tunnel.Sync", sync_message); }
+        catch { }
       }
     }
 
