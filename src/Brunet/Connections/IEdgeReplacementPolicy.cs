@@ -1,6 +1,5 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay networks.
-Copyright (C) 2005  University of California
 Copyright (C) 2010 P. Oscar Boykin <boykin@pobox.com>  University of Florida
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -23,7 +22,6 @@ THE SOFTWARE.
 */
 
 using BT = Brunet.Transport;
-using BR = Brunet.Relay;
 using SCG = System.Collections.Generic;
 
 namespace Brunet.Connections {
@@ -46,6 +44,7 @@ public interface IEdgeReplacementPolicy {
  */
 public class NeverReplacePolicy : IEdgeReplacementPolicy {
   public static readonly NeverReplacePolicy Instance = new NeverReplacePolicy();
+  private NeverReplacePolicy() { /* Make constructor private */ }
   public ConnectionState GetReplacement(ConnectionTableState cts,
                                  Connection c, ConnectionState c1, ConnectionState c2) {
     return c1;
@@ -82,24 +81,19 @@ public class TypeComparer : SCG.IComparer<System.Type> {
   }
 }
 
-/**
- * Prefer UDP to TCP to Relay.
- * Prefer Edges that go from Highest -> Lowest address (downhill)
- */
-public class DefaultERPolicy : IEdgeReplacementPolicy {
+public class TypeERPolicy : IEdgeReplacementPolicy {
 
-  public readonly static TypeComparer DefTC = new TypeComparer(typeof(BT.UdpEdge),
-                                                               typeof(BT.TcpEdge),
-                                                               typeof(BR.RelayEdge));
+  protected readonly IEdgeReplacementPolicy _fallback;
   protected readonly TypeComparer _tc;
-  public readonly Address Local; 
 
-  public DefaultERPolicy(Address loc) : this(loc, DefTC) { }
-  public DefaultERPolicy(Address loc, TypeComparer tc) {
-    Local = loc;
-    _tc = tc;
+  public TypeERPolicy(IEdgeReplacementPolicy fallback,
+                      params System.Type[] edge_order) {
+    if( null == fallback ) {
+      throw new System.ArgumentNullException("Fallback can't be null");
+    }
+    _fallback = fallback;
+    _tc = new TypeComparer(edge_order);
   }
-
   public ConnectionState GetReplacement(ConnectionTableState cts,
                                  Connection c, ConnectionState c1, ConnectionState c2) {
     var e1 = c1.Edge;
@@ -114,54 +108,82 @@ public class DefaultERPolicy : IEdgeReplacementPolicy {
       return c2;
     }
     else {
-      /*
-       * Now we are deciding between two edges of the same
-       * type, and therefore, it is fundamentally arbitrary.
-       * HOWEVER: both sides of the Connection should agree
-       * on the computation, OR one could choose one edge,
-       * and the other the opposite.
-       */
-      bool c1_is_down = IsDownhill(Local, c.Address, c1);
-      bool c2_is_down = IsDownhill(Local, c.Address, c2);
-      if( c1_is_down && (false == c2_is_down) ) {
-        return c1;
-      }
-      if( c2_is_down && (false == c1_is_down) ) {
-        return c2;
-      }
-      //If we get here, they are the same type, and both run in the same direction
-      int e1_idx;
-      int e2_idx;
-      if( typeof(BT.UdpEdge).Equals(t1) ) {
-        e1_idx = GetUdpIdx(c1);
-        e2_idx = GetUdpIdx(c2);
-      }
-      else if( typeof(BR.RelayEdge).Equals(t1) ) {
-        //The approach here is get unique numbers for each:
-        e1_idx = GetRelayIdx(c1);
-        e2_idx = GetRelayIdx(c2);
-      }
-      else if( typeof(BT.TcpEdge).Equals(t1) ) {
-        e1_idx = GetTcpIdx(c1);
-        e2_idx = GetTcpIdx(c2);
-      }
-      else {
-        //Assume the first one added is best, and don't replace
-        e1_idx = 0;
-        e2_idx = 1;
-      }
-      //Use this number as a proxy
-      return e1_idx <= e2_idx ? c1 : c2;
+      //We don't know how to handle, move on:
+      return _fallback.GetReplacement(cts, c, c1, c2);
     }
   }
-  protected int GetUdpIdx(ConnectionState cs) {
+}
+
+/**
+ * Prefer Edges that go from Highest -> Lowest address (downhill)
+ */
+public class DownhillERPolicy : IEdgeReplacementPolicy {
+  protected readonly IEdgeReplacementPolicy _fallback;
+  protected readonly Address _loc;
+  
+  public DownhillERPolicy(IEdgeReplacementPolicy fallback,
+                          Address local) {
+    if( null == fallback ) {
+      throw new System.ArgumentNullException("Fallback can't be null");
+    }
+    _fallback = fallback;
+    _loc = local;
+  }    
+
+  public ConnectionState GetReplacement(ConnectionTableState cts,
+                                 Connection c, ConnectionState c1,
+                                 ConnectionState c2) {
+    /*
+     * Now we are deciding between two edges of the same
+     * type, and therefore, it is fundamentally arbitrary.
+     * HOWEVER: both sides of the Connection should agree
+     * on the computation, OR one could choose one edge,
+     * and the other the opposite.
+     */
+    bool c1_is_down = IsDownhill(c.Address, c1);
+    bool c2_is_down = IsDownhill(c.Address, c2);
+    if( c1_is_down && (false == c2_is_down) ) {
+      return c1;
+    }
+    if( c2_is_down && (false == c1_is_down) ) {
+      return c2;
+    }
+    
+    //We don't know how to handle, move on:
+    return _fallback.GetReplacement(cts, c, c1, c2);
+  }
+  public bool IsDownhill(Address rem, ConnectionState cs) {
+    //our peer is local to himself:
+    int cmp = _loc.CompareTo(rem);
+    if( cmp < 0 ) {
+      return cs.Edge.IsInbound;
+    }
+    else if( cmp > 0 ) {
+      return !cs.Edge.IsInbound;
+    }
+    else {
+      //cmp == 0, which means we have a self connection:
+      throw new System.Exception("Cannot form connection to self");
+    }
+  }
+} 
+
+/** Use some ID numbers or ports attached to UdpEdge or TcpEdge
+ */
+public class IPIDERPolicy : IEdgeReplacementPolicy {
+
+  protected readonly IEdgeReplacementPolicy _fallback;
+
+  public IPIDERPolicy(IEdgeReplacementPolicy fallback) {
+    if( null == fallback ) {
+      throw new System.ArgumentNullException("Fallback can't be null");
+    }
+    _fallback = fallback;
+  }
+ 
+ protected int GetUdpIdx(ConnectionState cs) {
     var ue = (BT.UdpEdge)cs.Edge;
     if( ue.IsInbound ) { return ue.ID; }
-    else { return ue.RemoteID; }
-  }
-  protected int GetRelayIdx(ConnectionState cs) {
-    var ue = (BR.RelayEdge)cs.Edge;
-    if( ue.IsInbound ) { return ue.LocalID; }
     else { return ue.RemoteID; }
   }
   /*
@@ -185,22 +207,38 @@ public class DefaultERPolicy : IEdgeReplacementPolicy {
     }
     return (rta.Port << 16) | lta.Port;
   }
-
-  public static bool IsDownhill(Address loc, Address rem, ConnectionState cs) {
-    //our peer is local to himself:
-    int cmp = loc.CompareTo(rem);
-    if( cmp < 0 ) {
-      return cs.Edge.IsInbound;
+  public ConnectionState GetReplacement(ConnectionTableState cts,
+                                 Connection c, ConnectionState c1,
+                                               ConnectionState c2) {
+    if( (c1.Edge is BT.UdpEdge) && (c2.Edge is BT.UdpEdge) ) {
+      return GetUdpIdx(c1) <= GetUdpIdx(c2) ? c1 : c2;
     }
-    else if( cmp > 0 ) {
-      return !cs.Edge.IsInbound;
+    else if( (c1.Edge is BT.TcpEdge) && (c2.Edge is BT.TcpEdge) ) {
+      return GetTcpIdx(c1) <= GetTcpIdx(c2) ? c1 : c2;
     }
     else {
-      //cmp == 0, which means we have a self connection:
-      throw new System.Exception("Cannot form connection to self");
+      //We don't know how to handle, move on:
+      return _fallback.GetReplacement(cts, c, c1, c2);
     }
   }
+}
 
+/**
+ * last case: choose first connection, or use a passed policy
+ * prefer: use IDIPPolicy to get a unique ordering of TCP/UDP
+ * prefer: use DownhillPolicy for edges of the same type
+ * prefer: use the type-based ordering.
+ */
+public class DefaultERPolicy {
+
+  public static IEdgeReplacementPolicy Create(Address loc) {
+    return Create(NeverReplacePolicy.Instance, loc, typeof(BT.UdpEdge),typeof(BT.TcpEdge));
+  }
+  public static IEdgeReplacementPolicy Create(IEdgeReplacementPolicy fallback, Address loc, params System.Type[] edge_order) {
+    var id = new IPIDERPolicy(fallback);
+    var dh = new DownhillERPolicy(id,loc);
+    return new TypeERPolicy(dh, edge_order);
+  }
 }
 
 

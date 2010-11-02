@@ -105,7 +105,14 @@ namespace Brunet
         _send_pings = 1;
         _LOG = ProtocolLog.Monitor.Enabled;
 
-        _connection_table = new ConnectionTable(new DefaultERPolicy(addr));
+        //The default is pretty good, but add fallback handling of Relay:
+        var erp = DefaultERPolicy.Create(Brunet.Relay.RelayERPolicy.Instance,
+                                         addr,
+                                           typeof(Brunet.Transport.UdpEdge),
+                                           typeof(Brunet.Transport.TcpEdge),
+                                           typeof(Brunet.Relay.RelayEdge)
+                                        );
+        _connection_table = new ConnectionTable(erp);
         _connection_table.ConnectionEvent += this.ConnectionHandler;
         LockMgr = new ConnectionLockManager(_connection_table);
 
