@@ -70,6 +70,21 @@ namespace Brunet.Connections {
      */
     public void Lock(Address a, string t, ILinkLocker locker)
     {
+       /*
+         The locking did two things, it also prevented us from
+         starting a linker if we are already connected to a node.
+         When this was commented out, a dramatic increase in the
+         number of edges happened.  This has to be fixed, but for
+         now at least emulate this behavior
+        */
+        ConnectionType mt = Connection.StringToMainType(t);
+        var list = _cts.GetConnections(mt);
+        if( list.Contains(a) ) {
+          /**
+           * We already have a connection of this type to this node.
+           */
+          throw new ConnectionExistsException(list[a]);
+        }
  #if false
       if( null == a ) { return; }
       ConnectionType mt = Connection.StringToMainType(t);
