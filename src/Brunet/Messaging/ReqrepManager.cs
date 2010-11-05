@@ -465,7 +465,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
        TimeStats sendts = (TimeStats)_send_stats[s];
        if(null == sendts) {
          sendts = typets.Clone();
-         _type_stats[s] = sendts;
+         _send_stats[s] = sendts;
        }
        return new Pair<TimeStats,TimeStats>(typets, sendts);
      }
@@ -578,7 +578,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      }
 
      public TimeStats Clone() {
-       var ret = new TimeStats(_exp_moving_rtt, 0.98);
+       var ret = new TimeStats(_exp_moving_rtt, _exp_factor);
        ret._exp_moving_square_rtt = _exp_moving_square_rtt;
        ret._exp_moving_stdev = _exp_moving_stdev;
        ret._max_rtt = _max_rtt;
