@@ -844,6 +844,9 @@ namespace Brunet.Connections
       if( _target.Equals( LocalNode.Address ) ) {
         throw new LinkException("cannot connect to self");
       }
+      if( ConnectionInTable ) {
+        throw new LinkException("Connection already present");
+      }
       /*
        * This throws an exception if:
        * 0) we can't get the lock.
