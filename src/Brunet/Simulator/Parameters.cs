@@ -156,15 +156,11 @@ namespace Brunet.Simulator {
         }
       }
       
-      if(_size == 100) {
-        _size = latency_map.Count;
-      }
-      
       //If the size is less than the data set, we may get inconclusive
       // results as network size changes due to the table potentially being
       // heavy set early and lighter later.  This randomly orders all entries
       // so that multiple calls to the graph will provide a good distribution.
-      if(_size > latency_map.Count) {
+      if(_size < latency_map.Count) {
         Random rand = new Random(_seed);
         Dictionary<int, int> chosen = new Dictionary<int, int>(_size);
         for(int i = 0; i < _size; i++) {
