@@ -54,19 +54,13 @@ namespace Brunet.Transport
     ///<summary>Performance enhancement to reduce pressure on GC.</summary>
     static protected BufferAllocator _ba;
 
-    /**
-     * The id of this listener
-     */
-    protected int _listener_id;
-    protected Random _rand;
-    protected Dictionary<Edge, Edge> _edges;
-
-    protected ArrayList _tas;
-    /**
-     * The uri's for this type look like:
-     * brunet.function:[edge_id]
-     */
-    public override IEnumerable LocalTAs { get { return ArrayList.ReadOnly(_tas); } }
+    /// <summary>ID of this EL.</summary>
+    readonly protected int _listener_id;
+    static readonly protected Random _rand;
+    readonly protected Dictionary<Edge, Edge> _edges;
+    /// <summary> uri's for this type look like: brunet.s://[listener_id] </summary>
+    override public IEnumerable LocalTAs { get { return _local_tas; } }
+    readonly protected IEnumerable _local_tas;
 
     protected double _ploss_prob;
     public override TransportAddress.TAType TAType { get { return TransportAddress.TAType.S; } }
@@ -75,6 +69,7 @@ namespace Brunet.Transport
     {
       _listener_map = new Dictionary<int, SimulationEdgeListener>();
       _ba = new BufferAllocator(Int16.MaxValue);
+      _rand = new Random();
     }
 
     public SimulationEdgeListener(int id):this(id, 0.05, null) {}
@@ -92,9 +87,12 @@ namespace Brunet.Transport
       } else {
         _ta_auth = ta_auth;
       }
-      _tas = new ArrayList();
-      _tas.Add(TransportAddressFactory.CreateInstance("b.s://" + _listener_id));
-      _rand = new Random();
+
+      ArrayList tas = new ArrayList();
+      tas.Add(TransportAddressFactory.CreateInstance("b.s://" + _listener_id));
+      _local_tas = ArrayList.ReadOnly(tas);
+
+      _is_started = false;
     }
 
     static public void Clear()
@@ -102,35 +100,26 @@ namespace Brunet.Transport
       _listener_map.Clear();
     }
 
-    protected int _is_started = 0;
-    public override bool IsStarted
-    {
-      get { return 1 == _is_started; }
-    }
+    protected bool _is_started;
+    public override bool IsStarted { get { return _is_started; } }
 
     /*
      * Implements the EdgeListener function to 
      * create edges of this type.
      */
-    public override void CreateEdgeTo(TransportAddress ta,
-                                      EdgeCreationCallback ecb)
+    public override void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb)
     {
-      if( !IsStarted )
-      {
+      if( !IsStarted ) {
         // it should return null and not throw an exception
         // for graceful disconnect and preventing others to
         // connect to us after we've disconnected.
         ecb(false, null, new EdgeException("Not started"));
         return;
-      }
-
-      if( ta.TransportAddressType != this.TAType ) {
+      } else if( ta.TransportAddressType != this.TAType ) {
         //Can't make an edge of this type
         ecb(false, null, new EdgeException("Can't make edge of this type"));
         return;
-      }
-      
-      if( _ta_auth.Authorize(ta) == TAAuthorizer.Decision.Deny ) {
+      } else if( _ta_auth.Authorize(ta) == TAAuthorizer.Decision.Deny ) {
         //Not authorized.  Can't make this edge:
         ecb(false, null, new EdgeException( ta.ToString() + " is not authorized") );
         return;
@@ -142,8 +131,9 @@ namespace Brunet.Transport
       int delay = 0;
       if(_use_delay) {
         if(LatencyMap != null) {
-          // id != 0, so we reduce all by 1
-          delay = LatencyMap[_listener_id][remote_id] / 1000;
+          int local = _listener_id % LatencyMap.Count;
+          int remote = remote_id % LatencyMap.Count;
+          delay = LatencyMap[local][remote] / 1000;
         } else {
           delay = 100;
         }
@@ -154,14 +144,9 @@ namespace Brunet.Transport
 
       if(_listener_map.ContainsKey(remote_id)) {
         var remote = _listener_map[remote_id];
-        //
-        // Make sure that the remote listener does not deny 
-        // our TAs.
-        //
-
+        // Make sure that the remote listener does not deny our TAs.
         foreach (TransportAddress ta_local in LocalTAs) {
           if (remote.TAAuth.Authorize(ta_local) == TAAuthorizer.Decision.Deny ) {
-          //Not authorized.  Can't make this edge:
             ecb(false, null, new EdgeException( ta_local.ToString() + " is not authorized by remote node.") );
             return;
           }
@@ -200,23 +185,23 @@ namespace Brunet.Transport
 
     public override void Start()
     {
-      if(_is_started == 1) {
+      if(_is_started) {
         throw new Exception("Can only call SimulationEdgeListener.Start() once!"); 
       }
 
       if(_listener_map.ContainsKey(_listener_id)) {
         throw new Exception("SimulationEdgeListener already exists: " + _listener_id);
       }
-      _is_started = 1;
+      _is_started = true;
       _listener_map[_listener_id] = this;
     }
 
     public override void Stop()
     {
-      if(_is_started == 0) {
+      if(!_is_started) {
         return;
       }
-      _is_started = 0;
+      _is_started = false;
       // If two simulations exist in the same space, this could have been overwritten
       if(_listener_map.ContainsKey(_listener_id)) {
         if(_listener_map[_listener_id] == this) {
