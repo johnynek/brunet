@@ -123,6 +123,7 @@ namespace Brunet.Simulator {
       }
 
       _start = parameters.Evaluation;
+      _start = true;
       if(!do_not_start) {
         Start();
       }
@@ -140,21 +141,8 @@ namespace Brunet.Simulator {
           NodeMapping nm = Nodes.Values[idx];
           var tas = new List<TransportAddress>();
           int cidx = idx + 1;
-          cidx = cidx >= Nodes.Count ? cidx - Nodes.Count : cidx;
+          cidx = cidx == Nodes.Count ? 0 : cidx;
           tas.Add(Nodes.Values[cidx].Node.LocalTAs[0]);
-
-          cidx = idx + 2;
-          cidx = cidx >= Nodes.Count ? cidx - Nodes.Count : cidx;
-          tas.Add(Nodes.Values[cidx].Node.LocalTAs[0]);
-
-          cidx = idx - 1;
-          cidx = cidx >= 0 ? cidx : cidx + Nodes.Count;
-          tas.Add(Nodes.Values[cidx].Node.LocalTAs[0]);
-
-          cidx = idx - 2;
-          cidx = cidx >= 0 ? cidx : cidx + Nodes.Count;
-          tas.Add(Nodes.Values[cidx].Node.LocalTAs[0]);
-
           nm.Node.RemoteTAs = tas;
         }
         foreach(NodeMapping nm in Nodes.Values) {
