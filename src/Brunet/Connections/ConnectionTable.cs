@@ -23,7 +23,6 @@ THE SOFTWARE.
 */
 
 #if BRUNET_NUNIT
-#undef PRINT_CONNECTIONS
 using NUnit.Framework;
 #endif
 
