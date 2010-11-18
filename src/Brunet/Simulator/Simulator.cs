@@ -82,11 +82,11 @@ namespace Brunet.Simulator {
     public static readonly PType SimBroadcastPType = new PType("simbcast");
     public readonly SimpleFilter SimBroadcastHandler;
 
-    public Simulator(Parameters parameters) : this(parameters, false)
+    public Simulator(Parameters parameters) : this(parameters, true)
     {
     }
 
-    public Simulator(Parameters parameters, bool do_not_start)
+    protected Simulator(Parameters parameters, bool start)
     {
       SimulationTransportAddress.Enable();
       SimulationTransportAddressOther.Enable();
@@ -125,37 +125,34 @@ namespace Brunet.Simulator {
         SimulationEdgeListener.LatencyMap = parameters.LatencyMap;
       }
 
-      _start = parameters.Evaluation;
-      _start = true;
-      if(!do_not_start) {
+      if(start) {
         Start();
       }
-      _start = false;
     }
 
     protected void Start()
     {
+      _start = true;
       for(int i = 0; i < _parameters.Size; i++) {
         AddNode();
       }
 
       TransportAddress broken_ta = TransportAddressFactory.CreateInstance("b.s://" + 0);
-      if(_start) {
-        for(int idx = 0; idx < Nodes.Count; idx++) {
-          NodeMapping nm = Nodes.Values[idx];
-          var tas = new List<TransportAddress>();
-          int cidx = idx + 1;
-          cidx = cidx == Nodes.Count ? 0 : cidx;
-          tas.Add(Nodes.Values[cidx].Node.LocalTAs[0]);
-          if(_broken != 0) {
-            tas.Add(broken_ta);
-          }
-          nm.Node.RemoteTAs = tas;
+      for(int idx = 0; idx < Nodes.Count; idx++) {
+        NodeMapping nm = Nodes.Values[idx];
+        var tas = new List<TransportAddress>();
+        int cidx = idx + 1;
+        cidx = cidx == Nodes.Count ? 0 : cidx;
+        tas.Add(Nodes.Values[cidx].Node.LocalTAs[0]);
+        if(_broken != 0) {
+          tas.Add(broken_ta);
         }
-        foreach(NodeMapping nm in Nodes.Values) {
-          nm.Node.Connect();
-        }
+        nm.Node.RemoteTAs = tas;
       }
+      foreach(NodeMapping nm in Nodes.Values) {
+        nm.Node.Connect();
+      }
+      _start = false;
     }
 
     // The following are some helper functions

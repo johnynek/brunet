@@ -40,7 +40,7 @@ namespace Brunet.Simulator {
       new List<TransportAddress>(0);
 
     public SubringSimulator(SubringParameters sparams) :
-      base(sparams.PrivateParameters, true)
+      base(sparams.PrivateParameters, false)
     {
       _shared_overlay = new Simulator(sparams.PublicParameters);
       Start();
