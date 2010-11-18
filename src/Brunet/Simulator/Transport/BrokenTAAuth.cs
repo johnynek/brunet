@@ -2,7 +2,7 @@ using Brunet.Transport;
 using System;
 using System.Collections;
 
-namespace Brunet.Simulator {
+namespace Brunet.Simulator.Transport {
   /// <summary> Randomly breaks all edges to remote entity.</summary>
   public class BrokenTAAuth : TAAuthorizer {
     public readonly double Prob;

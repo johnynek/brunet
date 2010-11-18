@@ -108,10 +108,6 @@ namespace Brunet.Transport
       AddFactoryMethod("function", IPTransportAddress.Create);
       AddFactoryMethod("tls", IPTransportAddress.Create);
       AddFactoryMethod("tlstest", IPTransportAddress.Create);
-      //Here's the odd ball:
-      AddFactoryMethod("s", delegate(string s) {
-        return new SimulationTransportAddress(s);
-      });
     }
     public static void AddFactoryMethod(string s, Converter<string,TransportAddress> meth) {
       lock( _ta_factories ) {
@@ -233,6 +229,7 @@ namespace Brunet.Transport
       Function,
       Relay,
       S,
+      SO,
       Subring,
       Tls,
       TlsTest,
@@ -244,6 +241,7 @@ namespace Brunet.Transport
    protected static readonly string _FUNCTION_S = "function";
    protected static readonly string _TUNNEL_S = "tunnel";
    protected static readonly string _SIMULATION_S = "s";
+   protected static readonly string _SIMULATION_OTHER_S = "so";
    protected static readonly string _SUBRING_S = "subring";
     /**
      * .Net methods are not always so fast here
@@ -252,6 +250,8 @@ namespace Brunet.Transport
       switch(t) {
         case TAType.S:
           return _SIMULATION_S;
+        case TAType.SO:
+          return _SIMULATION_OTHER_S;
         case TAType.Udp:
           return _UDP_S;
         case TAType.Relay:
@@ -366,44 +366,12 @@ namespace Brunet.Transport
     }
   }
 
-  public class SimulationTransportAddress: TransportAddress {
-    public readonly int ID;
-    protected TAType _type = TAType.S;
-    public override TAType TransportAddressType { get { return TAType.S; } }
-
-    public override bool Equals(object o) {
-      if ( o == this ) { return true; }
-      SimulationTransportAddress other = o as SimulationTransportAddress;
-      return other != null ? ID == other.ID : false;
-    }
-
-    public override int GetHashCode() {
-      return base.GetHashCode();
-    }
-
-    public SimulationTransportAddress(string s) : base(s)
-    {
-      int pos = s.IndexOf(":") + 3;
-      int end = s.IndexOf("/", pos);
-      end = end > 0 ? end : s.Length;
-      ID = Int32.Parse(s.Substring(pos, end - pos));
-    }
-
-    public SimulationTransportAddress(int id) : this("b.s://" + id)
-    {
-      ID = id;
-    }
-  }
 #if BRUNET_NUNIT
 
   [TestFixture]
   public class TATester {
     [Test]
     public void Test() {
-      TransportAddress tas = TransportAddressFactory.CreateInstance("b.s://234580");
-      Assert.AreEqual(tas.ToString(), "b.s://234580", "Simulation string");
-      Assert.AreEqual((tas as SimulationTransportAddress).ID, 234580, "Simulation id");
-      Assert.AreEqual(TransportAddress.TAType.S, tas.TransportAddressType, "Simulation ta type");
       TransportAddress ta1 = TransportAddressFactory.CreateInstance("brunet.udp://10.5.144.69:5000");
       Assert.AreEqual(ta1.ToString(), "brunet.udp://10.5.144.69:5000", "Testing TA parsing");
       

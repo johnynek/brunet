@@ -30,11 +30,10 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 
+using Brunet.Transport;
 using Brunet.Util;
 
-namespace Brunet.Transport
-{
-
+namespace Brunet.Simulator.Transport {
   /**
    * Allows local nodes to communicate directly without the use of the
    * networking stack.  This class is not thread-safe and meant for single
@@ -50,12 +49,12 @@ namespace Brunet.Transport
     public long BytesSent { get { return _bytes; } }
 
     ///<summary>Map EL id to EL.</summary>
-    static protected Dictionary<int, SimulationEdgeListener> _listener_map;
+    static protected Dictionary<TransportAddress.TAType, Dictionary<int, SimulationEdgeListener>> _el_map;
     ///<summary>Performance enhancement to reduce pressure on GC.</summary>
     static protected BufferAllocator _ba;
 
     /// <summary>ID of this EL.</summary>
-    readonly protected int _listener_id;
+    readonly public int LocalID;
     static readonly protected Random _rand;
     readonly protected Dictionary<Edge, Edge> _edges;
     /// <summary> uri's for this type look like: brunet.s://[listener_id] </summary>
@@ -63,33 +62,59 @@ namespace Brunet.Transport
     readonly protected IEnumerable _local_tas;
 
     protected double _ploss_prob;
-    public override TransportAddress.TAType TAType { get { return TransportAddress.TAType.S; } }
+    public override TransportAddress.TAType TAType { get { return _ta_type; } }
+    protected TransportAddress.TAType _ta_type;
 
     static SimulationEdgeListener()
     {
-      _listener_map = new Dictionary<int, SimulationEdgeListener>();
+      _el_map = new Dictionary<TransportAddress.TAType, Dictionary<int, SimulationEdgeListener>>();
       _ba = new BufferAllocator(Int16.MaxValue);
       _rand = new Random();
     }
 
-    public SimulationEdgeListener(int id):this(id, 0.05, null) {}
-    public SimulationEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth) :
-      this(id, loss_prob, ta_auth, false) {}
+    /// <summary>Retrieve a given EL Dictionary for the TA Type.  This could leak,
+    /// though that would take the creation of many different EL types and in normal
+    /// usage there will only be 1 or 2 types.</summary>
+    static protected Dictionary<int, SimulationEdgeListener> GetEdgeListenerList(TransportAddress.TAType type)
+    {
+      if(!_el_map.ContainsKey(type)) {
+        _el_map[type] = new Dictionary<int, SimulationEdgeListener>();
+      }
+      return _el_map[type];
+    }
 
-    public SimulationEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth, bool use_delay)
+    public SimulationEdgeListener(int id):this(id, 0.05, null)
+    {
+    }
+
+    public SimulationEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth) :
+      this(id, loss_prob, ta_auth, true)
+    {
+    }
+
+    public SimulationEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth,
+        bool use_delay) : this(id, loss_prob, ta_auth, use_delay, TransportAddress.TAType.S)
+    {
+    }
+
+    public SimulationEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth,
+        bool use_delay, TransportAddress.TAType type)
     {
       _edges = new Dictionary<Edge, Edge>();
       _use_delay = use_delay;
-      _listener_id = id;
+      LocalID = id;
       _ploss_prob = loss_prob;
       if (ta_auth == null) {
         _ta_auth = new ConstantAuthorizer(TAAuthorizer.Decision.Allow);
       } else {
         _ta_auth = ta_auth;
       }
+      _ta_type = type;
 
       ArrayList tas = new ArrayList();
-      tas.Add(TransportAddressFactory.CreateInstance("b.s://" + _listener_id));
+      string sta = String.Format("b.{0}://{1}",
+          TransportAddress.TATypeToString(TAType), LocalID);
+      tas.Add(TransportAddressFactory.CreateInstance(sta));
       _local_tas = ArrayList.ReadOnly(tas);
 
       _is_started = false;
@@ -97,7 +122,17 @@ namespace Brunet.Transport
 
     static public void Clear()
     {
-      _listener_map.Clear();
+      Clear(TransportAddress.TAType.S);
+    }
+
+    static public void Clear(TransportAddress.TAType type)
+    {
+      if(!_el_map.ContainsKey(type)) {
+        return;
+      }
+      var el_map = _el_map[type];
+      el_map.Clear();
+      _el_map.Remove(type);
     }
 
     protected bool _is_started;
@@ -131,7 +166,7 @@ namespace Brunet.Transport
       int delay = 0;
       if(_use_delay) {
         if(LatencyMap != null) {
-          int local = _listener_id % LatencyMap.Count;
+          int local = LocalID % LatencyMap.Count;
           int remote = remote_id % LatencyMap.Count;
           delay = LatencyMap[local][remote] / 1000;
         } else {
@@ -139,11 +174,10 @@ namespace Brunet.Transport
         }
       }
 
-      SimulationEdge se_l = new SimulationEdge(this, _listener_id, remote_id, false, delay);
-      AddEdge(se_l);
-
-      if(_listener_map.ContainsKey(remote_id)) {
-        var remote = _listener_map[remote_id];
+      SimulationEdge se_l = new SimulationEdge(this, LocalID, remote_id, false, delay, _ta_type);
+      var el_map = GetEdgeListenerList(TAType);
+      if(el_map.ContainsKey(remote_id)) {
+        var remote = el_map[remote_id];
         // Make sure that the remote listener does not deny our TAs.
         foreach (TransportAddress ta_local in LocalTAs) {
           if (remote.TAAuth.Authorize(ta_local) == TAAuthorizer.Decision.Deny ) {
@@ -152,7 +186,7 @@ namespace Brunet.Transport
           }
         }
 
-        SimulationEdge se_r = new SimulationEdge(remote, remote_id, _listener_id, true, delay);
+        SimulationEdge se_r = new SimulationEdge(remote, remote_id, LocalID, true, delay, _ta_type);
         remote.AddEdge(se_r);
 
         se_l.Partner = se_r;
@@ -164,7 +198,6 @@ namespace Brunet.Transport
       }
       ecb(true, se_l, null);
     }
-
 
     protected void AddEdge(Edge edge)
     {
@@ -189,11 +222,12 @@ namespace Brunet.Transport
         throw new Exception("Can only call SimulationEdgeListener.Start() once!"); 
       }
 
-      if(_listener_map.ContainsKey(_listener_id)) {
-        throw new Exception("SimulationEdgeListener already exists: " + _listener_id);
+      var el_map = GetEdgeListenerList(_ta_type);
+      if(el_map.ContainsKey(LocalID)) {
+        throw new Exception("SimulationEdgeListener already exists: " + LocalID);
       }
       _is_started = true;
-      _listener_map[_listener_id] = this;
+      el_map[LocalID] = this;
     }
 
     public override void Stop()
@@ -203,9 +237,10 @@ namespace Brunet.Transport
       }
       _is_started = false;
       // If two simulations exist in the same space, this could have been overwritten
-      if(_listener_map.ContainsKey(_listener_id)) {
-        if(_listener_map[_listener_id] == this) {
-          _listener_map.Remove(_listener_id);
+      var el_map = GetEdgeListenerList(_ta_type);
+      if(el_map.ContainsKey(LocalID)) {
+        if(el_map[LocalID] == this) {
+          el_map.Remove(LocalID);
         }
       }
 

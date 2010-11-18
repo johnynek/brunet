@@ -239,8 +239,6 @@
     <Compile Include="..\src\Brunet\Transport\LocalDiscovery.cs" />
     <Compile Include="..\src\Brunet\Transport\NatHandler.cs" />
     <Compile Include="..\src\Brunet\Transport\PathEdgeListener.cs" />
-    <Compile Include="..\src\Brunet\Transport\SimulationEdge.cs" />
-    <Compile Include="..\src\Brunet\Transport\SimulationEdgeListener.cs" />
     <Compile Include="..\src\Brunet\Transport\TAAuthorizer.cs" />
     <Compile Include="..\src\Brunet\Transport\TcpEdge.cs" />
     <Compile Include="..\src\Brunet\Transport\TcpEdgeListener.cs" />

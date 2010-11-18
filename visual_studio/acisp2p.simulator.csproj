@@ -229,8 +229,6 @@
     <Compile Include="..\src\Brunet\Transport\LocalDiscovery.cs" />
     <Compile Include="..\src\Brunet\Transport\NatHandler.cs" />
     <Compile Include="..\src\Brunet\Transport\PathEdgeListener.cs" />
-    <Compile Include="..\src\Brunet\Transport\SimulationEdge.cs" />
-    <Compile Include="..\src\Brunet\Transport\SimulationEdgeListener.cs" />
     <Compile Include="..\src\Brunet\Transport\TAAuthorizer.cs" />
     <Compile Include="..\src\Brunet\Transport\TcpEdge.cs" />
     <Compile Include="..\src\Brunet\Transport\TcpEdgeListener.cs" />
@@ -239,7 +237,6 @@
     <Compile Include="..\src\Brunet\Transport\UdpEdgeListener.cs" />
     <Compile Include="..\src\Brunet\Transport\WrapperEdge.cs" />
     <Compile Include="..\src\Brunet\Transport\WrapperEdgeListener.cs" />
-    <Compile Include="..\src\Brunet\Simulator\BrokenTAAuth.cs" />
     <Compile Include="..\src\Brunet\Simulator\Main.cs" />
     <Compile Include="..\src\Brunet\Simulator\Parameters.cs" />
     <Compile Include="..\src\Brunet\Simulator\Simulator.cs" />
@@ -250,6 +247,14 @@
     <Compile Include="..\src\Brunet\Simulator\Tasks\DhtGet.cs" />
     <Compile Include="..\src\Brunet\Simulator\Tasks\DhtPut.cs" />
     <Compile Include="..\src\Brunet\Simulator\Tasks\Task.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Transport\BrokenTAAuth.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Transport\ConeNat.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Transport\IDTAAuth.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Transport\Nat.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Transport\SimulationEdge.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Transport\SimulationEdgeListener.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Transport\SimulationTransportAddress.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Transport\SymmetricNat.cs" />
     <Compile Include="..\src\Brunet\Symphony\BroadcastHandler.cs" />
     <Compile Include="..\src\Brunet\Symphony\BroadcastReceiver.cs" />
     <Compile Include="..\src\Brunet\Symphony\BroadcastSender.cs" />

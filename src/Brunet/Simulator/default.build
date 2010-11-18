@@ -46,7 +46,7 @@
     <csc target="exe" output="${build.dir}/Simulator.exe" main="Brunet.Simulator.Runner">
       <sources failonempty="true">
         <include name="*.cs"/>
-        <include name="Tasks/*.cs"/>
+        <include name="Transport/*.cs"/>
         <include name="Tasks/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
@@ -58,7 +58,7 @@
     <csc target="exe" output="${build.dir}/RelayOverlapSimulator.exe" main="Brunet.Simulator.RelayOverlapSimulator">
       <sources failonempty="true">
         <include name="*.cs"/>
-        <include name="Tasks/*.cs"/>
+        <include name="Transport/*.cs"/>
         <include name="Tasks/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
@@ -70,7 +70,7 @@
     <csc target="exe" define="SUBRING" output="${build.dir}/SubringSimulator.exe" main="Brunet.Simulator.Runner">
       <sources failonempty="true">
         <include name="*.cs"/>
-        <include name="Tasks/*.cs"/>
+        <include name="Transport/*.cs"/>
         <include name="Tasks/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
@@ -85,7 +85,7 @@
     <csc target="library" define="BRUNET_NUNIT" optimize="true" output="${build.dir}/Simulator.Test.dll">
       <sources>
         <include name="*.cs"/>
-        <include name="Tasks/*.cs"/>
+        <include name="Transport/*.cs"/>
         <include name="Tasks/*.cs"/>
       </sources>
       <references basedir="${build.dir}">

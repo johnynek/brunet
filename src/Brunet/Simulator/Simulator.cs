@@ -41,6 +41,7 @@ using Brunet.Security.Transport;
 using Brunet.Services;
 using Brunet.Services.Coordinate;
 using Brunet.Services.Dht;
+using Brunet.Simulator.Transport;
 using Brunet.Symphony;
 using Brunet.Transport;
 using Brunet.Relay;
@@ -87,6 +88,8 @@ namespace Brunet.Simulator {
 
     public Simulator(Parameters parameters, bool do_not_start)
     {
+      SimulationTransportAddress.Enable();
+      SimulationTransportAddressOther.Enable();
       _parameters = parameters;
       StartingNetworkSize = parameters.Size;
       CurrentNetworkSize = 0;

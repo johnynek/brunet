@@ -27,14 +27,15 @@ THE SOFTWARE.
 using System;
 using System.Threading;
 using System.Collections;
+using Brunet.Transport;
 
-namespace Brunet.Transport {
+namespace Brunet.Simulator.Transport {
   /// <summary>Single-threaded edge listener for simulation purposes.</summary>
   public class SimulationEdge : Edge {
     protected readonly IEdgeSendHandler _sh;
 
     public readonly int Delay;
-    public readonly int ListenerId;
+    public readonly int LocalID;
     public readonly int RemoteID;
 
     public SimulationEdge(IEdgeSendHandler s, int local_id, int remote_id,
@@ -43,23 +44,31 @@ namespace Brunet.Transport {
     }
 
     public SimulationEdge(IEdgeSendHandler s, int local_id, int remote_id,
-        bool is_in, int delay) : base(s, is_in)
+        bool is_in, int delay) :
+      this(s, local_id, remote_id, is_in, delay, TransportAddress.TAType.S)
+    {
+    }
+   
+    public SimulationEdge(IEdgeSendHandler s, int local_id, int remote_id,
+        bool is_in, int delay, TransportAddress.TAType type) : base(s, is_in)
     {
       _sh = s;
       Delay = delay;
-      ListenerId = local_id;
+      LocalID = local_id;
       RemoteID = remote_id;
+      _ta_type = type;
     }
 
     public SimulationEdge Partner;
-    public override TransportAddress.TAType TAType { get { return TransportAddress.TAType.S; } }
+    public override TransportAddress.TAType TAType { get { return _ta_type; } }
+    readonly protected TransportAddress.TAType _ta_type;
 
     protected TransportAddress _local_ta;
     public override TransportAddress LocalTA
     {
       get {
         if ( _local_ta == null ) {
-          _local_ta = TransportAddressFactory.CreateInstance("b.s://" + ListenerId);
+          _local_ta = GetTransportAddress(LocalID);
         }
         return _local_ta;
       }
@@ -70,10 +79,17 @@ namespace Brunet.Transport {
     {
       get {
         if ( _remote_ta == null ) {
-          _remote_ta = TransportAddressFactory.CreateInstance("b.s://" + RemoteID);
+          _remote_ta = GetTransportAddress(RemoteID);
         }
         return _remote_ta;
       }
+    }
+
+    protected TransportAddress GetTransportAddress(int id)
+    {
+      string tas = String.Format("b.{0}://{1}",
+          TransportAddress.TATypeToString(TAType), LocalID);
+      return TransportAddressFactory.CreateInstance(tas);
     }
 
     /// <summary>Receive data from the remote end point.</summary>

@@ -27,6 +27,7 @@ using System.Collections.Generic;
 using System.Security.Cryptography;
 using Brunet.Connections;
 using Brunet.Services.Coordinate;
+using Brunet.Simulator.Transport;
 using Brunet.Symphony;
 using Brunet.Relay;
 using Brunet.Transport;
