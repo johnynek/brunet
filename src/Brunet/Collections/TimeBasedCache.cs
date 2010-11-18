@@ -68,6 +68,9 @@ namespace Brunet.Collections {
       _stopped = 0;
     }
 
+    /// <summary> Returns the total number of entries cached not precise. </summary>
+    public int Count { get { return _first.Count + _second.Count; } }
+
 #if BRUNET_NUNIT
     public void Recycle(DateTime now)
 #else
