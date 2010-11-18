@@ -139,6 +139,7 @@ namespace Brunet.Simulator {
         AddNode();
       }
 
+      TransportAddress broken_ta = TransportAddressFactory.CreateInstance("b.s://" + 0);
       if(_start) {
         for(int idx = 0; idx < Nodes.Count; idx++) {
           NodeMapping nm = Nodes.Values[idx];
@@ -146,6 +147,9 @@ namespace Brunet.Simulator {
           int cidx = idx + 1;
           cidx = cidx == Nodes.Count ? 0 : cidx;
           tas.Add(Nodes.Values[cidx].Node.LocalTAs[0]);
+          if(_broken != 0) {
+            tas.Add(broken_ta);
+          }
           nm.Node.RemoteTAs = tas;
         }
         foreach(NodeMapping nm in Nodes.Values) {
@@ -366,6 +370,10 @@ namespace Brunet.Simulator {
     ///<summary>Add a new specific node to the simulation.</summary>
     public virtual Node AddNode(int id, AHAddress address)
     {
+      if(TakenIDs.ContainsKey(id)) {
+        throw new Exception("ID already taken");
+      }
+
       StructuredNode node = PrepareNode(id, address);
       if(!_start) {
         node.Connect();
