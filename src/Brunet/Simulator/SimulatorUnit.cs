@@ -7,14 +7,24 @@ using NUnit.Framework;
 namespace Brunet.Simulator {
   [TestFixture]
   public class TestSimulator {
+    private Simulator _sim;
+    [TearDown]
+    public void Cleanup()
+    {
+      if(_sim != null) {
+        _sim.Disconnect();
+        _sim = null;
+      }
+    }
+
     [Test]
     public void CompleteTheRing() {
       Parameters p = new Parameters("Test", "Test");
       string[] args = "-b=.2 -c -s=25".Split(' ');
       Assert.AreNotEqual(-1, p.Parse(args), "Unable to parse" + p.ErrorMessage);;
       Simulator sim = new Simulator(p);
+      _sim = sim;
       Assert.IsTrue(sim.Complete(true), "Simulation failed to complete the ring");
-      sim.Disconnect();
     }
 
     [Test]
@@ -23,8 +33,8 @@ namespace Brunet.Simulator {
       string[] args = "-b=.2 -c --secure_edges -s=25".Split(' ');
       Assert.AreNotEqual(-1, p.Parse(args), "Unable to parse" + p.ErrorMessage);;
       Simulator sim = new Simulator(p);
+      _sim = sim;
       Assert.IsTrue(sim.Complete(true), "Simulation failed to complete the ring");
-      sim.Disconnect();
     }
 
 //    [Test]
@@ -34,7 +44,6 @@ namespace Brunet.Simulator {
       Assert.AreNotEqual(-1, p.Parse(args), "Unable to parse" + p.ErrorMessage);;
       Simulator sim = new Simulator(p);
       Assert.IsTrue(sim.Complete(true), "Simulation failed to complete the ring");
-      sim.Disconnect();
     }
 
     [Test]
@@ -43,8 +52,8 @@ namespace Brunet.Simulator {
       string[] args = "-b=.2 -c --secure_edges -s=25 --subring=10".Split(' ');
       Assert.AreNotEqual(-1, p.Parse(args), "Unable to parse" + p.ErrorMessage);;
       SubringSimulator sim = new SubringSimulator(p);
+      _sim = sim;
       Assert.IsTrue(sim.Complete(true), "Simulation failed to complete the ring");
-      sim.Disconnect();
     }
 
     [Test]
@@ -53,6 +62,7 @@ namespace Brunet.Simulator {
       string[] args = "-s=100".Split(' ');
       Assert.AreNotEqual(-1, p.Parse(args), "Unable to parse" + p.ErrorMessage);;
       RelayOverlapSimulator sim = new RelayOverlapSimulator(p);
+      _sim = sim;
 
       Address addr1 = null, addr2 = null;
       sim.AddDisconnectedPair(out addr1, out addr2, sim.NCEnable);
@@ -85,7 +95,6 @@ namespace Brunet.Simulator {
 
       SimpleTimer.RunSteps(100000, false);
       Assert.IsTrue(node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr2) != null);
-      sim.Disconnect();
     }
   }
 }
