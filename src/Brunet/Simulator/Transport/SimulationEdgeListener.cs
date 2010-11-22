@@ -52,24 +52,23 @@ namespace Brunet.Simulator.Transport {
     static protected Dictionary<TransportAddress.TAType, Dictionary<int, SimulationEdgeListener>> _el_map;
     ///<summary>Performance enhancement to reduce pressure on GC.</summary>
     static protected BufferAllocator _ba;
+    static readonly protected Random _rand;
 
     /// <summary>ID of this EL.</summary>
     readonly public int LocalID;
-    static readonly protected Random _rand;
     readonly protected Dictionary<Edge, Edge> _edges;
-    /// <summary> uri's for this type look like: brunet.s://[listener_id] </summary>
-    override public IEnumerable LocalTAs { get { return _local_tas; } }
-    readonly protected IEnumerable _local_tas;
+    override public IEnumerable LocalTAs { get { return Nat.KnownTransportAddresses; } }
 
     protected double _ploss_prob;
     public override TransportAddress.TAType TAType { get { return _ta_type; } }
     protected TransportAddress.TAType _ta_type;
+    public INat Nat;
 
     static SimulationEdgeListener()
     {
       _el_map = new Dictionary<TransportAddress.TAType, Dictionary<int, SimulationEdgeListener>>();
       _ba = new BufferAllocator(Int16.MaxValue);
-      _rand = new Random();
+      _rand = Node.SimulatorRandom;
     }
 
     /// <summary>Retrieve a given EL Dictionary for the TA Type.  This could leak,
@@ -83,22 +82,16 @@ namespace Brunet.Simulator.Transport {
       return _el_map[type];
     }
 
-    public SimulationEdgeListener(int id):this(id, 0.05, null)
-    {
-    }
-
-    public SimulationEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth) :
-      this(id, loss_prob, ta_auth, true)
-    {
-    }
-
-    public SimulationEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth,
-        bool use_delay) : this(id, loss_prob, ta_auth, use_delay, TransportAddress.TAType.S)
+    public SimulationEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth, bool use_delay) :
+      this(id, loss_prob, ta_auth, use_delay, TransportAddress.TAType.S,
+          new PublicNat(TransportAddressFactory.CreateInstance(
+              String.Format("b.{0}://{1}",
+              TransportAddress.TATypeToString(TransportAddress.TAType.S), id))))
     {
     }
 
     public SimulationEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth,
-        bool use_delay, TransportAddress.TAType type)
+        bool use_delay, TransportAddress.TAType type, INat nat)
     {
       _edges = new Dictionary<Edge, Edge>();
       _use_delay = use_delay;
@@ -111,12 +104,7 @@ namespace Brunet.Simulator.Transport {
       }
       _ta_type = type;
 
-      ArrayList tas = new ArrayList();
-      string sta = String.Format("b.{0}://{1}",
-          TransportAddress.TATypeToString(TAType), LocalID);
-      tas.Add(TransportAddressFactory.CreateInstance(sta));
-      _local_tas = ArrayList.ReadOnly(tas);
-
+      Nat = nat;
       _is_started = false;
     }
 
@@ -161,13 +149,14 @@ namespace Brunet.Simulator.Transport {
       }
       
       int remote_id = ((SimulationTransportAddress) ta).ID;
+      int real_remote_id = (remote_id >= 0) ? remote_id : ~remote_id;
 
       //Outbound edge:
       int delay = 0;
       if(_use_delay) {
         if(LatencyMap != null) {
           int local = LocalID % LatencyMap.Count;
-          int remote = remote_id % LatencyMap.Count;
+          int remote = real_remote_id % LatencyMap.Count;
           delay = LatencyMap[local][remote] / 1000;
         } else {
           delay = 100;
@@ -175,28 +164,40 @@ namespace Brunet.Simulator.Transport {
       }
 
       SimulationEdge se_l = new SimulationEdge(this, LocalID, remote_id, false, delay, _ta_type);
-      var el_map = GetEdgeListenerList(TAType);
-      if(el_map.ContainsKey(remote_id)) {
-        var remote = el_map[remote_id];
-        // Make sure that the remote listener does not deny our TAs.
-        foreach (TransportAddress ta_local in LocalTAs) {
-          if (remote.TAAuth.Authorize(ta_local) == TAAuthorizer.Decision.Deny ) {
-            ecb(false, null, new EdgeException( ta_local.ToString() + " is not authorized by remote node.") );
-            return;
-          }
-        }
-
-        SimulationEdge se_r = new SimulationEdge(remote, remote_id, LocalID, true, delay, _ta_type);
-        remote.AddEdge(se_r);
-
-        se_l.Partner = se_r;
-        se_r.Partner = se_l;
-        remote.SendEdgeEvent(se_r);
-      } else {
-          //There is no other edge, for now, we use "udp-like"
-          //behavior of just making an edge that goes nowhere.
+      if(real_remote_id == remote_id) {
+        CreateRemoteEdge(se_l);
       }
       ecb(true, se_l, null);
+    }
+
+    private void CreateRemoteEdge(SimulationEdge se_l)
+    {
+      int remote_id = se_l.RemoteID;
+      var el_map = GetEdgeListenerList(TAType);
+      if(!el_map.ContainsKey(remote_id)) {
+        return;
+      }
+
+      var remote = el_map[remote_id];
+
+      if(!remote.Nat.AllowingIncomingConnections) {
+        return;
+      }
+
+      // Make sure that the remote listener does not deny our TAs.
+      foreach (TransportAddress ta_local in LocalTAs) {
+        if (remote.TAAuth.Authorize(ta_local) == TAAuthorizer.Decision.Deny ) {
+          return;
+        }
+      }
+
+      SimulationEdge se_r = new SimulationEdge(remote, remote_id, LocalID, true,
+          se_l.Delay, _ta_type);
+      remote.AddEdge(se_r);
+
+      se_l.Partner = se_r;
+      se_r.Partner = se_l;
+      remote.SendEdgeEvent(se_r);
     }
 
     protected void AddEdge(Edge edge)
@@ -253,7 +254,19 @@ namespace Brunet.Simulator.Transport {
       }
     }
 
+    public override void UpdateLocalTAs(Edge e, TransportAddress ta)
+    {
+      if(e.TAType == TAType) {
+        Nat.UpdateTAs(e.RemoteTA, ta);
+      }
+    }
+
     public void HandleEdgeSend(Edge from, ICopyable p) {
+      SimulationEdge se_from = (SimulationEdge)from;
+      if(!Nat.Outgoing(se_from.RemoteTA)) {
+        return;
+      }
+
       if(_ploss_prob > 0) {
         if(_rand.NextDouble() < _ploss_prob) {
           return;
@@ -268,11 +281,16 @@ namespace Brunet.Simulator.Transport {
         _bytes += offset;
       }
 
-      SimulationEdge se_from = (SimulationEdge)from;
       SimulationEdge se_to = se_from.Partner;
-      if(se_to != null) {
-        se_to.Push(mb);
+      if(se_to == null) {
+        return;
       }
+
+      if(!se_to.SimEL.Nat.Incoming(se_from.LocalTA)) {
+        return;
+      }
+
+      se_to.Push(mb);
     }
   }
 }

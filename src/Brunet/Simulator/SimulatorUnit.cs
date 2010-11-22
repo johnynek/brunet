@@ -2,6 +2,7 @@
 using Brunet;
 using Brunet.Connections;
 using Brunet.Util;
+using Brunet.Simulator.Transport;
 using NUnit.Framework;
 
 namespace Brunet.Simulator {
@@ -57,6 +58,57 @@ namespace Brunet.Simulator {
     }
 
     [Test]
+    public void TestNatTraversal() {
+      Parameters p = new Parameters("Test", "Test");
+      string[] args = "-c -s=100".Split(' ');
+      Assert.AreNotEqual(-1, p.Parse(args), "Unable to parse" + p.ErrorMessage);;
+      Simulator sim = new Simulator(p);
+      _sim = sim;
+      Assert.IsTrue(sim.Complete(true), "Simulation failed to complete the ring");
+      SimpleTimer.RunSteps(1000000, false);
+
+      Node node0 = null;
+      Node node1 = null;
+      while(true) {
+        node0 = sim.AddNode();
+        node1 = sim.AddNode();
+
+        NatFactory.AddNat(node0.EdgeListenerList, NatTypes.Cone);
+        NatFactory.AddNat(node1.EdgeListenerList, NatTypes.Cone);
+        Assert.IsTrue(sim.Complete(true), "Cone nodes connected to the overlay");
+        if(!IsConnected(node0, node1.Address)) {
+          break;
+        }
+      }
+
+      ManagedConnectionOverlord mco = new ManagedConnectionOverlord(node0);
+      mco.Start();
+      node0.AddConnectionOverlord(mco);
+      mco.Set(node1.Address);
+
+      Assert.IsTrue(IsConnected(node0, node1.Address), "NAT nodes were unable to form a direct connection!");
+
+      while(true) {
+        node0 = sim.AddNode();
+        node1 = sim.AddNode();
+
+        NatFactory.AddNat(node0.EdgeListenerList, NatTypes.RestrictedCone);
+        NatFactory.AddNat(node1.EdgeListenerList, NatTypes.RestrictedCone);
+        Assert.IsTrue(sim.Complete(true), "RestrictedCone nodes connected to the overlay");
+        if(!IsConnected(node0, node1.Address)) {
+          break;
+        }
+      }
+
+      mco = new ManagedConnectionOverlord(node0);
+      mco.Start();
+      node0.AddConnectionOverlord(mco);
+      mco.Set(node1.Address);
+
+      Assert.IsTrue(IsConnected(node0, node1.Address), "NAT nodes were unable to form a direct connection!");
+    }
+
+    [Test]
     public void Relays() {
       Parameters p = new Parameters("Test", "Test");
       string[] args = "-s=100".Split(' ');
@@ -65,26 +117,24 @@ namespace Brunet.Simulator {
       _sim = sim;
 
       Address addr1 = null, addr2 = null;
-      sim.AddDisconnectedPair(out addr1, out addr2, sim.NCEnable);
-      sim.Complete(true);
-      SimpleTimer.RunSteps(1000000, false);
+      Node node1 = null, node2 = null;
+      while(true) {
+        sim.AddDisconnectedPair(out addr1, out addr2, sim.NCEnable);
+        sim.Complete(true);
 
-      Node node1 = (sim.Nodes[addr1] as NodeMapping).Node as Node;
-      Node node2 = (sim.Nodes[addr2] as NodeMapping).Node as Node;
+        node1 = (sim.Nodes[addr1] as NodeMapping).Node as Node;
+        node2 = (sim.Nodes[addr2] as NodeMapping).Node as Node;
 
-      if(node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr2) != null) {
-        Relays();
-        return;
+        if(!IsConnected(node1, addr2)) {
+          break;
+        }
       }
 
       ManagedConnectionOverlord mco = new ManagedConnectionOverlord(node1);
       mco.Start();
       node1.AddConnectionOverlord(mco);
       mco.Set(addr2);
-      sim.Complete(true);
-      SimpleTimer.RunSteps(100000, false);
-
-      Assert.IsTrue(node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr2) != null);
+      Assert.IsTrue(IsConnected(node1, addr2));
 
       foreach(Connection con in node1.ConnectionTable.GetConnections(Relay.OverlapConnectionOverlord.STRUC_OVERLAP)) {
         con.State.Edge.Close();
@@ -93,8 +143,23 @@ namespace Brunet.Simulator {
         con.State.Edge.Close();
       }
 
-      SimpleTimer.RunSteps(100000, false);
-      Assert.IsTrue(node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr2) != null);
+      Assert.IsTrue(IsConnected(node1, addr2));
+    }
+
+    protected bool IsConnected(Node node, Address other)
+    {
+      DateTime start = DateTime.UtcNow;
+      long ticks_end = start.AddMinutes(2).Ticks;
+      bool success = false;
+      while(DateTime.UtcNow.Ticks < ticks_end) {
+        success = node.ConnectionTable.GetConnection(ConnectionType.Structured, other) != null;
+        if(success) {
+          break;
+        }
+        SimpleTimer.RunStep();
+      }
+
+      return success;
     }
   }
 }

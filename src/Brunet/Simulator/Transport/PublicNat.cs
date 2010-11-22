@@ -20,23 +20,35 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
+using System.Collections;
 using Brunet.Transport;
 
 namespace Brunet.Simulator.Transport {
-  ///<summary> Denies any attempt on a particular Simulator node ID.</summary>
-  public class IDTAAuthorizer : TAAuthorizer {
-    protected int _denied_id;
-    public IDTAAuthorizer(int id) {
-      _denied_id = id;
+  public class PublicNat : INat {
+    readonly private TransportAddress[] _local_tas;
+
+    public bool AllowingIncomingConnections { get { return true; } }
+    public IEnumerable InternalTransportAddresses { get { return _local_tas; } }
+    public IEnumerable ExternalTransportAddresses { get { return _local_tas; } }
+    public IEnumerable KnownTransportAddresses { get { return _local_tas; } }
+
+    public PublicNat(TransportAddress local_ta)
+    {
+      _local_tas = new TransportAddress[1] { local_ta };
     }
 
-    public override TAAuthorizer.Decision Authorize(TransportAddress a) {
-      if (_denied_id == ((SimulationTransportAddress)a).ID) {
-        return TAAuthorizer.Decision.Deny;
-      } else {
-        //else this decision should not matter
-        return TAAuthorizer.Decision.None;
-      }
+    public bool Incoming(TransportAddress remote_ta)
+    {
+      return true;
+    }
+
+    public bool Outgoing(TransportAddress remote_ta)
+    {
+      return true;
+    }
+
+    public void UpdateTAs(TransportAddress remote_ta, TransportAddress local_ta)
+    {
     }
   }
 }

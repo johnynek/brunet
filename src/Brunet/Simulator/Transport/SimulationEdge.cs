@@ -32,11 +32,10 @@ using Brunet.Transport;
 namespace Brunet.Simulator.Transport {
   /// <summary>Single-threaded edge listener for simulation purposes.</summary>
   public class SimulationEdge : Edge {
-    protected readonly IEdgeSendHandler _sh;
-
     public readonly int Delay;
     public readonly int LocalID;
     public readonly int RemoteID;
+    public readonly SimulationEdgeListener SimEL;
 
     public SimulationEdge(IEdgeSendHandler s, int local_id, int remote_id,
         bool is_in) : this(s, local_id, remote_id, is_in, 0)
@@ -52,43 +51,28 @@ namespace Brunet.Simulator.Transport {
     public SimulationEdge(IEdgeSendHandler s, int local_id, int remote_id,
         bool is_in, int delay, TransportAddress.TAType type) : base(s, is_in)
     {
-      _sh = s;
       Delay = delay;
       LocalID = local_id;
       RemoteID = remote_id;
       _ta_type = type;
+      _local_ta = GetTransportAddress(local_id);
+      _remote_ta = GetTransportAddress(remote_id);
+      SimEL = s as SimulationEdgeListener;
     }
 
     public SimulationEdge Partner;
     public override TransportAddress.TAType TAType { get { return _ta_type; } }
     readonly protected TransportAddress.TAType _ta_type;
 
-    protected TransportAddress _local_ta;
-    public override TransportAddress LocalTA
-    {
-      get {
-        if ( _local_ta == null ) {
-          _local_ta = GetTransportAddress(LocalID);
-        }
-        return _local_ta;
-      }
-    }
-
-    protected TransportAddress _remote_ta;
-    public override TransportAddress RemoteTA
-    {
-      get {
-        if ( _remote_ta == null ) {
-          _remote_ta = GetTransportAddress(RemoteID);
-        }
-        return _remote_ta;
-      }
-    }
+    readonly protected TransportAddress _local_ta;
+    public override TransportAddress LocalTA { get { return _local_ta; } }
+    readonly protected TransportAddress _remote_ta;
+    public override TransportAddress RemoteTA { get { return _remote_ta; } }
 
     protected TransportAddress GetTransportAddress(int id)
     {
       string tas = String.Format("b.{0}://{1}",
-          TransportAddress.TATypeToString(TAType), LocalID);
+          TransportAddress.TATypeToString(TAType), id);
       return TransportAddressFactory.CreateInstance(tas);
     }
 
