@@ -401,6 +401,16 @@ namespace Brunet.Simulator {
       RemoveNode(nm.Node, cleanly, output);
     }
 
+    // These methods assist with determining state of the overlay
+
+    static public bool AreConnected(Node node0, Node node1)
+    {
+      Address addr0 = node0.Address, addr1 = node1.Address;
+      bool connected = node0.ConnectionTable.GetConnection(ConnectionType.Structured, addr1) != null;
+      connected &= node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr0) != null;
+      return connected;
+    }
+
     /// <summary>Performs a crawl of the network using the ConnectionTable of
     /// each node.</summary>
     public bool CheckRing(bool log)

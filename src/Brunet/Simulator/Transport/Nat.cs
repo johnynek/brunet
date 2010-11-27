@@ -48,11 +48,54 @@ namespace Brunet.Simulator.Transport {
     Cone,
     RestrictedCone,
     Symmetric,
-    OutboundOnly,
+    OutgoingOnly,
     Disabled
   }
 
   static public class NatFactory {
+    static public Node AddNode(Simulator sim, NatTypes type0, NatTypes type1, bool relay)
+    {
+      Node node = sim.AddNode();
+      NatFactory.AddNat(node.EdgeListenerList, type0);
+
+      if(relay) {
+        Relay.IRelayOverlap ito = new Relay.SimpleRelayOverlap();
+        EdgeListener el = new Relay.RelayEdgeListener(node, ito);
+        node.AddEdgeListener(el);
+        el.Start();
+      }
+
+      if(type1 != NatTypes.Disabled) {
+        NodeMapping nm = sim.Nodes[node.Address];
+        int id = nm.ID;
+        string tas = SimulationTransportAddress.GetString(TransportAddress.TAType.SO, id);
+        INat nat = GetNat(TransportAddressFactory.CreateInstance(tas), type1);
+        SimulationEdgeListener el = new SimulationEdgeListener(id, 0, null,
+            true, TransportAddress.TAType.SO, nat);
+        node.AddEdgeListener(el);
+        el.Start();
+      }
+      return node;
+    }
+
+    static public INat GetNat(TransportAddress ta, NatTypes type)
+    {
+      switch(type) {
+        case NatTypes.Cone:
+          return new ConeNat(ta, 60000);
+        case NatTypes.OutgoingOnly:
+          return new OutgoingOnly(ta);
+        case NatTypes.Public:
+          return new PublicNat(ta);
+        case NatTypes.RestrictedCone:
+          return new RestrictedConeNat(ta, 60000);
+        case NatTypes.Symmetric:
+          return new SymmetricNat(ta, 60000);
+        default:
+          throw new NotImplementedException("NAT Type: " + type + " not implemented.");
+      }
+    }
+
     static public void AddNat(IEnumerable el_list, NatTypes type)
     {
       SimulationEdgeListener simel = null;
@@ -77,22 +120,7 @@ namespace Brunet.Simulator.Transport {
         throw new Exception("How did we get a null TA?");
       }
 
-      switch(type) {
-        case NatTypes.Cone:
-          simel.Nat = new ConeNat(ta, 60000);
-          break;
-        case NatTypes.Disabled:
-          break;
-        case NatTypes.OutboundOnly:
-          break;
-        case NatTypes.Public:
-          simel.Nat = new PublicNat(ta);
-          break;
-        case NatTypes.RestrictedCone:
-          break;
-        case NatTypes.Symmetric:
-          break;
-      }
+      simel.Nat = GetNat(ta, type);
     }
   }
 }

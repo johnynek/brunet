@@ -2,6 +2,7 @@
 // For license, see the file LICENSE in the root directory of this software.
 
 using System;
+using Brunet.Util;
 
 namespace Brunet.Simulator.Tasks {
   abstract public class Task {
@@ -34,6 +35,14 @@ namespace Brunet.Simulator.Tasks {
       _done = true;
       if(_finished != null) {
         _finished(this, EventArgs.Empty);
+      }
+    }
+
+    virtual public void Run(int time)
+    {
+      DateTime end = DateTime.UtcNow.AddSeconds(time);
+      while(!_done && DateTime.UtcNow < end) {
+        SimpleTimer.RunStep();
       }
     }
   }

@@ -33,60 +33,16 @@ namespace Brunet.Simulator.Transport {
   /// own address and it has a stable connection to another peer, it allows
   /// inbound connections.  Incoming messages are allow so long as there is an
   /// existing NAT mapping.</summary>
-  public class ConeNat : INat {
-    protected TimeBasedCache<TransportAddress, bool> _allowed;
-    protected TransportAddress[] _external_ta;
-    protected TransportAddress[] _internal_ta;
-    protected TransportAddress[] _known_tas;
-    protected bool _allow_inbound;
-
-    public ConeNat(TransportAddress ta, int timeout)
+  public class SymmetricNat : RestrictedConeNat {
+    public SymmetricNat(TransportAddress ta, int timeout) : base(ta, timeout)
     {
-      _external_ta = new TransportAddress[1] { ta };
-      _internal_ta = new TransportAddress[1] { ((SimulationTransportAddress) ta).Invert() };
-      _known_tas = _internal_ta;
-      // TBC uses a staged GC, so values are still in after one timeout
-      _allowed = new TimeBasedCache<TransportAddress, bool>(timeout / 2);
-      _allowed.EvictionHandler += HandleEviction;
-      _allow_inbound = false;
     }
 
-    /// <summary>If there are no more entries in the cache, our mapping has, we
-    /// will no longer allow inbound connections.</summary>
-    private void HandleEviction(object sender,
-        TimeBasedCache<TransportAddress, bool>.EvictionArgs ea)
-    {
-      _allow_inbound = _allowed.Count > 0;
-    }
-
-    virtual public bool AllowingIncomingConnections { get { return _allow_inbound; } }
-    public IEnumerable ExternalTransportAddresses { get { return _external_ta; } }
-    public IEnumerable InternalTransportAddresses { get { return _internal_ta; } }
-    public IEnumerable KnownTransportAddresses { get { return _known_tas; } }
-    
-    virtual public bool Incoming(TransportAddress ta)
-    {
-      return _allowed.Count > 0;
-    }
-
-    public bool Outgoing(TransportAddress ta)
-    {
-      _allowed.Update(ta, true);
-      return true;
-    }
-
-    public void UpdateTAs(TransportAddress remote_ta, TransportAddress local_ta)
-    {
-      if(_known_tas.Length == 2) {
-        return;
-      }
-      _known_tas = new TransportAddress[2] { _internal_ta[0], local_ta };
-      _allow_inbound = true;
-    }
+    override public bool AllowingIncomingConnections { get { return false; } }
   }
 #if BRUNET_NUNIT
   [TestFixture]
-  public class ConeNatTest {
+  public class SymmetricNatTest {
     [Test]
     public void Test()
     {
@@ -97,17 +53,18 @@ namespace Brunet.Simulator.Transport {
       TransportAddress[] tas = new TransportAddress[2] { tai, ta };
       var ta_oth = TransportAddressFactory.CreateInstance("b.s://234581");
       var ta_oth0 = TransportAddressFactory.CreateInstance("b.s://234582");
-      ConeNat nat = new ConeNat(ta, 30000);
+      var nat = new SymmetricNat(ta, 30000);
       Assert.IsFalse(nat.Incoming(ta_oth), "No outbound yet...");
       Assert.IsTrue(nat.Outgoing(ta_oth), "outbound...");
-      Assert.IsFalse(nat.AllowingIncomingConnections, "Have not received external ta.");
+      Assert.IsFalse(nat.AllowingIncomingConnections, "SymmetricNat does not allow incoming cons");
       Assert.AreEqual(nat.InternalTransportAddresses, nat.KnownTransportAddresses, "ITA and KTA match");
 
       nat.UpdateTAs(ta_oth, ta);
       Assert.IsTrue(nat.Incoming(ta_oth), "Allowed incoming");
-      Assert.IsTrue(nat.Incoming(ta_oth0), "Allowed incoming 0");
-      Assert.IsTrue(nat.AllowingIncomingConnections, "Have received external ta.");
+      Assert.IsFalse(nat.Incoming(ta_oth0), "Port mapped systems must send out a packet first...");
+      Assert.IsFalse(nat.AllowingIncomingConnections, "SymmetricNat does not allow incoming cons");
       Assert.AreEqual(tas, nat.KnownTransportAddresses, "Two TAs!");
+      Assert.IsTrue(nat.Outgoing(ta_oth0), "outbound...");
 
       Brunet.Util.SimpleTimer.RunSteps(7500);
       Assert.IsTrue(nat.Incoming(ta_oth0), "Allowed incoming 0");
@@ -117,11 +74,11 @@ namespace Brunet.Simulator.Transport {
       Assert.IsTrue(nat.Incoming(ta_oth0), "Allowed incoming 0");
       Brunet.Util.SimpleTimer.RunSteps(7500);
       Assert.IsTrue(nat.Incoming(ta_oth0), "Allowed incoming 0");
-      Assert.IsTrue(nat.AllowingIncomingConnections, "Have received external ta.");
+      Assert.IsFalse(nat.AllowingIncomingConnections, "SymmetricNat does not allow incoming cons");
       Assert.AreEqual(tas, nat.KnownTransportAddresses, "Two TAs!");
 
       Brunet.Util.SimpleTimer.RunSteps(60000);
-      Assert.IsFalse(nat.AllowingIncomingConnections, "AllowIC:  Timed out...");
+      Assert.IsFalse(nat.AllowingIncomingConnections, "SymmetricNat does not allow incoming cons");
       Assert.IsFalse(nat.Incoming(ta_oth), "Incoming:  Timed out....");
     }
   }

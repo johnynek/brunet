@@ -110,7 +110,7 @@ namespace Brunet.Simulator.Transport {
 
     static public void Clear()
     {
-      Clear(TransportAddress.TAType.S);
+      _el_map.Clear();
     }
 
     static public void Clear(TransportAddress.TAType type)
