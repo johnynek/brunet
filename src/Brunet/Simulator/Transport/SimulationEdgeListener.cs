@@ -108,6 +108,17 @@ namespace Brunet.Simulator.Transport {
       _is_started = false;
     }
 
+    static public long TotalDataTransferred()
+    {
+      long bytes = 0;
+      foreach(var el_map in _el_map.Values) {
+        foreach(SimulationEdgeListener sel in el_map.Values) {
+          bytes += sel._bytes;
+        }
+      }
+      return bytes;
+    }
+
     static public void Clear()
     {
       _el_map.Clear();
