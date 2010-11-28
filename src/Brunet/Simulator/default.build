@@ -78,6 +78,23 @@
         <include name="NDesk.Options.dll"/>
       </references>
     </csc>
+
+    <csc target="exe" optimize="true" output="${build.dir}/RegressionTest.exe" main="Brunet.Simulator.Regression.Runner">
+      <sources>
+        <include name="*.cs"/>
+        <include name="Transport/*.cs"/>
+        <include name="Tasks/*.cs"/>
+        <include name="Regression/*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.Simulator.dll"/>
+        <include name="ManagedOpenSsl.dll"/>
+        <include name="NDesk.Options.dll"/>
+        <include name="nunit.framework.dll" />
+        <include name="System.Data.dll" />
+        <include name="Mono.Data.Sqlite.dll" />
+      </references>
+    </csc>
   </target>
 
   <target name="test" description="Builds nunit testable Simulator">
