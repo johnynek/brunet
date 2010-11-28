@@ -91,7 +91,11 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     }
     _info = info;
     _prefix = prefix;
+#if BRUNET_SIMULATOR
+    Random r = Node.SimulatorRandom;
+#else
     Random r = new Random();
+#endif
     //Don't use negative numbers:
     _req_state_table = new UidGenerator<RequestState>(r, true);
     //Don't use negative numbers:

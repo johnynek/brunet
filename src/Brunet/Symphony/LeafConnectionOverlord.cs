@@ -110,8 +110,12 @@ namespace Brunet.Symphony
       _local = local;
       _linker = null;
       _sync = new object();
+#if BRUNET_SIMULATOR
+      _rnd = Node.SimulatorRandom;
+#else
       _rnd = new Random( _local.GetHashCode()
                          ^ unchecked((int)DateTime.UtcNow.Ticks) );
+#endif
       _default_retry_interval = new TimeSpan(0,0,0,0,10000);
       _current_retry_interval = new TimeSpan(0,0,0,0,10000);
       //We initialize at at year 1 to start with:

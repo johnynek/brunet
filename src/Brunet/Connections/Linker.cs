@@ -334,7 +334,11 @@ namespace Brunet.Connections
         }
         if( Interlocked.Exchange(ref _first_start, 0) == 1) {
           //Compute the interval:
+#if BRUNET_SIMULATOR
+          Random rand = Node.SimulatorRandom;
+#else
           Random rand = new Random();
+#endif
           int restart_msec = rand.Next(_MS_RESTART_TIME);
           Action<DateTime> torun = delegate(DateTime now) {
             //Tell the node to call Start on us:

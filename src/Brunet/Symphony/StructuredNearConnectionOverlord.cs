@@ -48,7 +48,11 @@ namespace Brunet.Symphony {
       _sync = new Object();
       lock( _sync ) {
         _node = n;
+#if BRUNET_SIMULATOR
+        _rand = Node.SimulatorRandom;
+#else
         _rand = new Random();
+#endif
         _connectors = new Hashtable();
         _last_connection_time = DateTime.UtcNow;
       /**

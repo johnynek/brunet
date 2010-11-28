@@ -38,7 +38,11 @@ using Brunet.Symphony;
 namespace Brunet.Relay {
   /// <summary>Holds the state information for a Relays.</summary>
   public class RelayEdge : Brunet.Transport.Edge {
+#if BRUNET_SIMULATOR
+    protected static readonly Random _rand = Node.SimulatorRandom;
+#else
     protected static readonly Random _rand = new Random();
+#endif
     public readonly int LocalID;
     protected int _remote_id;
 

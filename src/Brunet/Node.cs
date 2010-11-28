@@ -264,6 +264,9 @@ namespace Brunet
 // Inner types, delegates 
 // ///
 
+#if BRUNET_SIMULATOR
+    public static Random SimulatorRandom = new Random();
+#endif
     public delegate bool EdgeVerifier(Node node, Edge e, Address addr);
 
     /**

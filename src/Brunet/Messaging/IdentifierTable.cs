@@ -44,7 +44,12 @@ namespace Brunet.Messaging {
 
     public IdentifierTable(bool non_neg)
     {
-      _local_to_idpair = new UidGenerator<IIdentifierPair>(new Random(), non_neg);
+#if BRUNET_SIMULATOR
+      Random rand = Node.SimulatorRandom;
+#else
+      Random rand = new Random();
+#endif
+      _local_to_idpair = new UidGenerator<IIdentifierPair>(rand, non_neg);
     }
 
     /// <summary>A new identifier pair, may be incoming or outgoing.</summary>

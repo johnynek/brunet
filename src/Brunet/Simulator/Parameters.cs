@@ -131,6 +131,12 @@ namespace Brunet.Simulator {
           return -1;
         }
       }
+
+      if(_seed == -1) {
+        Node.SimulatorRandom = new Random();
+      } else {
+        Node.SimulatorRandom = new Random(_seed);
+      }
       
       return 0;
     }
@@ -161,7 +167,7 @@ namespace Brunet.Simulator {
       // heavy set early and lighter later.  This randomly orders all entries
       // so that multiple calls to the graph will provide a good distribution.
       if(_size < latency_map.Count) {
-        Random rand = new Random(_seed);
+        Random rand = Node.SimulatorRandom;
         Dictionary<int, int> chosen = new Dictionary<int, int>(_size);
         for(int i = 0; i < _size; i++) {
           int index = rand.Next(0, latency_map.Count - 1);

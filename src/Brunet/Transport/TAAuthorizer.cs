@@ -142,7 +142,11 @@ public class PortTAAuthorizer : TAAuthorizer {
    */
 
 public class RandomTAAuthorizer: TAAuthorizer {
+#if BRUNET_SIMULATOR
+  protected static Random _rand = Node.SimulatorRandom;
+#else
   protected static Random _rand = new Random();
+#endif
   protected ArrayList _deny_list;
   protected double  _deny_prob;
   public RandomTAAuthorizer(double deny_prob) {

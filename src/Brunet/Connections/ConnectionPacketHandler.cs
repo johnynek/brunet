@@ -197,7 +197,11 @@ namespace Brunet.Connections
       }
       catch {}
       if( shortcuts.Count > 0 ) {
+#if BRUNET_SIMULATOR
+        Random r = Node.SimulatorRandom;
+#else
         Random r = new Random();
+#endif
         Connection sc = (Connection)shortcuts[ r.Next( shortcuts.Count ) ];
         result["shortcut"] = sc.Address.ToString();
       }

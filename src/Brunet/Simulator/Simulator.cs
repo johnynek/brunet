@@ -96,12 +96,7 @@ namespace Brunet.Simulator {
       Nodes = new SortedList<Address, NodeMapping>();
       TakenIDs = new SortedList<int, NodeMapping>();
       SimBroadcastHandler = new SimpleFilter();
-
-      if(parameters.Seed != -1) {
-        _rand = new Random(parameters.Seed);
-      } else {
-        _rand = new Random();
-      }
+      _rand = Node.SimulatorRandom;
 
       BrunetNamespace = "testing" + _rand.Next();
       _broken = parameters.Broken;
@@ -239,7 +234,7 @@ namespace Brunet.Simulator {
     {
       TAAuthorizer auth = null;
       if(_broken != 0 && id > 0) {
-        auth = new BrokenTAAuth(_rand, _broken);
+        auth = new BrokenTAAuth(_broken);
       }
 
       return new SimulationEdgeListener(id, 0, auth, true);

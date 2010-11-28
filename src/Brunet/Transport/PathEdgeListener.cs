@@ -219,7 +219,11 @@ namespace Brunet.Transport {
      */
     public PathEdgeListener CreatePath()
     {
+#if BRUNET_SIMULATOR
+      Random rand = Node.SimulatorRandom;
+#else
       Random rand = new Random();
+#endif
       PathEdgeListener pel = null;
 
       lock( _sync ) {
