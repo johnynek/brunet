@@ -237,7 +237,7 @@ namespace Brunet.Simulator {
         auth = new BrokenTAAuth(_broken);
       }
 
-      return new SimulationEdgeListener(id, 0, auth, true);
+      return new SimulationEdgeListener(id, _parameters.DropRate, auth, true);
     }
 
     /// <summary>Return a small list of random TAs.</summary>

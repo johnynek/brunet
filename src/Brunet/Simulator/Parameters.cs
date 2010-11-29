@@ -35,6 +35,7 @@ namespace Brunet.Simulator {
     public double Broken { get { return _broken; } }
     public bool Complete { get { return _complete; } }
     public string Dataset { get { return _dataset; } }
+    public double DropRate { get { return _drop_rate; } }
     public bool Dtls { get { return _dtls; } }
     public string ErrorMessage { get { return _error_message; } }
     public bool Evaluation { get { return _evaluation; } }
@@ -66,6 +67,7 @@ namespace Brunet.Simulator {
     protected List<List<int>> _latency_map = null;
     protected OptionSet _options;
     protected string _output = "output.out";
+    protected double _drop_rate = 0;
 
     public Parameters(string app_name, string app_description)
     {
@@ -86,6 +88,7 @@ namespace Brunet.Simulator {
         {"d|dataset=", "Peer latency latency_map", v => _dataset = v},
         {"dtls", "Use Dtls instead of PeerSec", v => _dtls = true},
         {"output=", "Output file name", v => _output = v}, 
+        {"drop_rate=", "Drop rate", v => _drop_rate = Double.Parse(v)},
         {"h|help", "Help", v => _help = true},
       };
     }
