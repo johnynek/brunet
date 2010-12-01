@@ -26,6 +26,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
+using Brunet.Collections;
+
 namespace Brunet.Simulator {
   public class Parameters {
     public readonly string AppName;
@@ -68,6 +70,7 @@ namespace Brunet.Simulator {
     protected OptionSet _options;
     protected string _output = "output.out";
     protected double _drop_rate = 0;
+    protected bool _random_latency = false;
 
     public Parameters(string app_name, string app_description)
     {
@@ -89,6 +92,7 @@ namespace Brunet.Simulator {
         {"dtls", "Use Dtls instead of PeerSec", v => _dtls = true},
         {"output=", "Output file name", v => _output = v}, 
         {"drop_rate=", "Drop rate", v => _drop_rate = Double.Parse(v)},
+        {"random_latency", v => _random_latency = true},
         {"h|help", "Help", v => _help = true},
       };
     }
@@ -126,71 +130,24 @@ namespace Brunet.Simulator {
         return -1;
       }
 
-      if(_dataset != string.Empty) {
-        try {
-          _latency_map = ReadLatencyDataSet();
-        } catch(Exception e) {
-          _error_message = e.Message;
-          return -1;
-        }
-      }
-
       if(_seed == -1) {
         Node.SimulatorRandom = new Random();
       } else {
         Node.SimulatorRandom = new Random(_seed);
       }
       
+      if(_dataset != string.Empty) {
+        try {
+          _latency_map = Utils.ReadLatencyDataSet(_dataset, _size);
+        } catch(Exception e) {
+          _error_message = e.Message;
+          return -1;
+        }
+      } else if(_random_latency) {
+        _latency_map = Utils.RandomLatencyMap(_size);
+      }
+
       return 0;
-    }
-
-    protected List<List<int>> ReadLatencyDataSet()
-    {
-      var latency_map = new List<List<int>>();
-      using(StreamReader fs = new StreamReader(new FileStream(_dataset, FileMode.Open))) {
-        string line = null;
-        while((line = fs.ReadLine()) != null) {
-          string[] points = line.Split(' ');
-          List<int> current = new List<int>(points.Length);
-          foreach(string point in points) {
-            int val;
-            if(!Int32.TryParse(point, out val)) {
-              val = 500;
-            } else if(val < 0) {
-              val = 500;
-            }
-            current.Add(val);
-          }
-          latency_map.Add(current);
-        }
-      }
-      
-      //If the size is less than the data set, we may get inconclusive
-      // results as network size changes due to the table potentially being
-      // heavy set early and lighter later.  This randomly orders all entries
-      // so that multiple calls to the graph will provide a good distribution.
-      if(_size < latency_map.Count) {
-        Random rand = Node.SimulatorRandom;
-        Dictionary<int, int> chosen = new Dictionary<int, int>(_size);
-        for(int i = 0; i < _size; i++) {
-          int index = rand.Next(0, latency_map.Count - 1);
-          while(chosen.ContainsKey(index)) {
-            index = rand.Next(0, latency_map.Count - 1);
-          }
-          chosen.Add(i, index);
-        }
-
-        var new_latency_map = new List<List<int>>(latency_map.Count);
-        for(int i = 0; i < _size; i++) {
-          List<int> map = new List<int>(_size);
-          for(int j = 0; j < _size; j++) {
-            map.Add(latency_map[chosen[i]][chosen[j]]);
-          }
-          new_latency_map.Add(map);
-        }
-        latency_map = new_latency_map;
-      }
-      return latency_map;
     }
 
     public void ShowHelp()
