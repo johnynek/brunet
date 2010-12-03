@@ -54,6 +54,9 @@ namespace Brunet.Connections
     protected NodeInfo(Address a, IList transports)
     {
       _address = a;
+      if( null == transports ) {
+        throw new System.ArgumentNullException("transports cannot be null");
+      }
       _tas = transports;
     }
 
@@ -95,10 +98,16 @@ namespace Brunet.Connections
     }
 
     public static NodeInfo CreateInstance(Address a, TransportAddress ta) {
+      if( null == ta ) {
+        throw new System.ArgumentNullException("TransportAddress cannot be null");
+      }
       return CreateInstance(a, null, ta);
     }
 
     public static NodeInfo CreateInstance(Address a, IList tas) {
+      if( null == tas ) {
+        throw new System.ArgumentNullException("TransportAddress cannot be null");
+      }
       return CreateInstance(a, tas, null);
     }
 
@@ -127,6 +136,7 @@ namespace Brunet.Connections
             //to lookup NodeInfos, this will allow us to only keep one
             //identical NodeInfo in scope at a time.
             if(ta == null) {
+              //Note, if ta == null that implies tas is not null
               result = new NodeInfo(a, tas);
             } else {
               result = new NodeInfo(a, ta);
@@ -138,6 +148,7 @@ namespace Brunet.Connections
         }
       }
       else if(ta == null) {
+        //Note, if ta == null that implies tas is not null
         result = new NodeInfo(a, tas);
       } else {
         result = new NodeInfo(a, ta);

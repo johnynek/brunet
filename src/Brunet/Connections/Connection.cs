@@ -84,6 +84,10 @@ namespace Brunet.Connections {
 		      string connectiontype,
 		      StatusMessage sm, LinkMessage peerlm)
     {
+      if( null == a ) {
+        throw new System.ArgumentNullException(
+                    String.Format("Address cannot be null in Connection: Edge: {0} contype: {1}", e, connectiontype));
+      }
       Address = a;
       ConType = String.Intern(connectiontype);
       CreationTime = DateTime.UtcNow;
