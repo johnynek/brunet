@@ -161,6 +161,11 @@ namespace Brunet.Transport
       private EndPoint End;
       private readonly Socket Sock;
       private readonly BufferAllocator BA;
+      //Used to keep track of recently used ids
+      private const int ID_HISTORY_SIZE = 32;
+      //Combine 32bit local | 32bit remote into a long:
+      private readonly long[] _recently_used_id;
+      private int _rulid_ptr;
 
       public ListenerState(UdpEdgeListener el, Socket s, TAAuthorizer taa) {
         EL = el;
@@ -172,6 +177,15 @@ namespace Brunet.Transport
         var rand = new SecureRandom();
         LocalIdTab = new UidGenerator<EdgeState>(rand, true);
         RemoteIdTab = new Dictionary<int, List<EdgeState> >();
+        _rulid_ptr = 0;
+        _recently_used_id = new long[ID_HISTORY_SIZE];
+      }
+      //Call this when we close an edge to remember we used the ID recently:
+      private void AddIDToHist(int localid, int remoteid) {
+        long long_local = (long)localid;
+        long id = (long_local << 32) | remoteid;
+        _recently_used_id[ _rulid_ptr ] = id;
+        _rulid_ptr = (_rulid_ptr + 1) % ID_HISTORY_SIZE;
       }
       private void AddRemoteTab(EdgeState es) {
         int remoteid = es.Edge.RemoteID;
@@ -234,6 +248,22 @@ namespace Brunet.Transport
           }
         }
       }
+      private bool IDWasRecent(int localid, int remoteid) {
+        long long_local = (long)localid;
+        long id = (long_local << 32) | remoteid;
+        //Look backwards through the list to hopefully hit more recent first
+        int cnt = ID_HISTORY_SIZE;
+        int pos = _rulid_ptr;
+        while(cnt-- > 0) {
+          pos = pos == 0 ? ID_HISTORY_SIZE - 1 : pos - 1;
+          if( id == _recently_used_id[ pos ] ) {
+            return true;
+          }
+        }
+        //Wasn't any of these
+        return false;
+      }
+
       public void CloseAllEdges() {
         foreach(var edgestate in LocalIdTab) {
           EL.RequestClose(edgestate.Edge); 
@@ -322,10 +352,16 @@ namespace Brunet.Transport
         //else: We just ignore this...
       }
       private void HandleMismatch(int local, int remote, int rec_bytes) {
-        //TODO this could be a security issue
-        //better to keep a cache of recently used localid to see if this is
-        //legit, and ignore otherwise
-        EL.SendControlPacket(null, End, remote, local, ControlCode.EdgeClosed);
+        if( local < 0 ) { local = ~local; }
+        if( IDWasRecent(local, remote) ) {
+          /* Only send this message for recently closed edges.  This should
+           * is here to prevent:
+           * 1) port scanning: we will ignore packets that don't look like existing or new edges
+           * 2) forged UDP packets could cause us to be a DDOS machine for evil nodes: they
+           *    send our machines bad packets with forged headers, we send a response to an innocent party
+           */
+          EL.SendControlPacket(null, End, remote, local, ControlCode.EdgeClosed);
+        }
       }
       private void HandleNewEdgeReq(int remoteid, int rec_bytes) {
         /*
@@ -472,8 +508,10 @@ namespace Brunet.Transport
       public void RemoveEdge(UdpEdge e) {
           EdgeState es;
           if( LocalIdTab.TryTake( e.ID, out es ) ) {
-            List<EdgeState> remotes;
+            //Now record the ID in our recent history:
             int rem = e.RemoteID;
+            AddIDToHist(e.ID, rem);
+            List<EdgeState> remotes;
             if( RemoteIdTab.TryGetValue(rem, out remotes) ) {
               remotes.Remove(es);
               if( remotes.Count == 0 ) {
@@ -641,7 +679,7 @@ namespace Brunet.Transport
           return ps;
         }
         else {
-          throw new Exception("UdpEdgeListener not yet started");
+          throw new Exception("UdpEdgeListener not yet started: " + ps.RunState.ToString());
         }
       }
     }
