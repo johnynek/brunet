@@ -112,6 +112,21 @@ public class RepeatingFuzzyEvent : FuzzyEvent {
     _interval = interval;
     _flag = flag;
   }
+  public RepeatingFuzzyEvent Next(DateTime now) {
+    DateTime next_start = Start;
+    DateTime next_end = End;
+      /*
+       * We keep creating the next in the chain of repeating events until
+       * we finally get one that is not strictly before the current time
+       */
+    do {
+      next_start += _interval;
+      next_end += _interval;
+    } while( next_end.CompareTo(now) < 0 );
+      //We have to make a new event because Interval<DateTime> has readonly
+      //fields.  We pass the flag variable so share one big cancel variable
+    return new RepeatingFuzzyEvent(_todo, next_start, next_end, _interval, _flag);
+  }
   public override bool TryCancel() {
     return _flag.TrySet();
   }
@@ -120,10 +135,7 @@ public class RepeatingFuzzyEvent : FuzzyEvent {
     if( _flag.Value == false ) {
       //We still have not canceled:
       _todo(now);
-      //We have to make a new event because Interval<DateTime> has readonly
-      //fields.  We pass the flag variable so share one big cancel variable
-      var fe = new RepeatingFuzzyEvent(_todo, Start + _interval, End + _interval, _interval, _flag);
-      FuzzyTimer.Instance.Schedule(fe);
+      FuzzyTimer.Instance.Schedule(Next(now));
       return true;
     }
     else {
