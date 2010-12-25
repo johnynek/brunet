@@ -131,7 +131,11 @@ namespace Brunet
         _mr_handler = new MR.MapReduceHandler(this);
         //Subscribe it with the RPC handler:
         _rpc.AddHandler("mapreduce", _mr_handler);
-
+        //Set up Fragmenting Handler:
+        var fh = new FragmentingHandler(1024); //cache at most 1024 fragments
+        DemuxHandler.GetTypeSource(
+          FragmentingSender.FragPType ).Subscribe(fh, this);
+        fh.Subscribe(this, fh);
         /*
          * Where there is a change in the Connections, we might have a state
          * change

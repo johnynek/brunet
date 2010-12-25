@@ -1,7 +1,7 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
-Copyright (C) 2007  P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2010  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -107,48 +107,45 @@ public class FragmentingSender : ISender, IWrappingSender {
   public override int GetHashCode() { return _wrapped_sender.GetHashCode(); }
 
   public void Send(ICopyable data) {
-    int len = data.Length;
-    if( len <= MAX_PAYLOAD_SIZE ) {
-      _wrapped_sender.Send(data);
+    //We always use the fragmenting header to signal
+    //to the receiving end that we support (and want)
+    //fragmentation.
+    MemBlock rest = data as MemBlock;
+    if(null == rest) {
+      rest = MemBlock.Copy(data);
     }
-    else {
-      if( len > MAX_SEND_SIZE ) {
-        throw new SendException(true,
-                   System.String.Format("Packet too large: {0}, MaxSize = {1}",len,
-                   MAX_SEND_SIZE));
+    int len = rest.Length;
+    if( len > MAX_SEND_SIZE ) {
+      throw new SendException(true,
+                 System.String.Format("Packet too large: {0}, MaxSize = {1}",len,
+                 MAX_SEND_SIZE));
+    }
+    uint crc32 = rest.Read<uint>(Crc32.ComputeChecksum);
+    //Avoid a RNG operation for now, might need to reconsider
+    //If we use RNG, we have to touch state, that has thread-safety issues
+    int id = _wrapped_sender.GetHashCode() ^ rest.GetHashCode();
+    byte[] header = new byte[HEADER_SIZE - 2];
+    int off = FragPType.CopyTo(header, 0);
+    NumberSerializer.WriteInt((int)crc32, header, off);
+    NumberSerializer.WriteInt(id, header, off + 4);
+    MemBlock header_mb = MemBlock.Reference(header);
+     
+    ushort block = 0;
+    int blocksize = ComputeBlockSize(len);
+    while( rest.Length > 0) {
+      int this_size = System.Math.Min(blocksize, rest.Length);
+      MemBlock this_block = rest.Slice(0, this_size);
+      rest = rest.Slice(this_size);
+      //Check to see if this is the last block:
+      if( rest.Length == 0 ) {
+        block = (ushort)(block ^ (0x8000)); //Set the highest bit, this is last
       }
-      //Need to fragment
-      MemBlock rest = data as MemBlock;
-      if(null == rest) {
-        rest = MemBlock.Copy(data);
-      }
-      uint crc32 = rest.Read<uint>(Crc32.ComputeChecksum);
-      //Avoid a RNG operation for now, might need to reconsider
-      //If we use RNG, we have to touch state, that has thread-safety issues
-      int id = _wrapped_sender.GetHashCode() ^ rest.GetHashCode();
-      byte[] header = new byte[HEADER_SIZE - 2];
-      int off = FragPType.CopyTo(header, 0);
-      NumberSerializer.WriteInt((int)crc32, header, off);
-      NumberSerializer.WriteInt(id, header, off + 4);
-      MemBlock header_mb = MemBlock.Reference(header);
-       
-      ushort block = 0;
-      int blocksize = ComputeBlockSize(len);
-      while( rest.Length > 0) {
-        int this_size = System.Math.Min(blocksize, rest.Length);
-        MemBlock this_block = rest.Slice(0, this_size);
-        rest = rest.Slice(this_size);
-        //Check to see if this is the last block:
-        if( rest.Length == 0 ) {
-          block = (ushort)(block ^ (0x8000)); //Set the highest bit, this is last
-        }
-        byte[] block_b = new byte[2];
-        NumberSerializer.WriteShort((short)block, block_b, 0);
-        MemBlock block_mb = MemBlock.Reference(block_b);
-        
-        _wrapped_sender.Send(new CopyList(header_mb, block_mb, this_block));
-        block += 1;
-      }
+      byte[] block_b = new byte[2];
+      NumberSerializer.WriteShort((short)block, block_b, 0);
+      MemBlock block_mb = MemBlock.Reference(block_b);
+      
+      _wrapped_sender.Send(new CopyList(header_mb, block_mb, this_block));
+      block += 1;
     }
   }
   public System.String ToUri() {
@@ -166,6 +163,12 @@ public class FragmentingSender : ISender, IWrappingSender {
 public class FragmentingHandler : SimpleSource, IDataHandler {
 
   private readonly Cache _fragments;
+  /**
+   * TODO evaluate this choice, idea, make sure final packet is much less than 1500,
+   * if we don't keep it, significantly under, TunnelEdges/Forwarding might have some
+   * problems.  So, 1300 should give us a 200 byte headroom for other layers on top.
+   */
+  private static readonly int DEFAULT_SIZE = 1300; 
   private readonly SCG.Dictionary<Pair<uint, int>, Fragments> _frag_count;
 
   private class Fragments {
@@ -254,7 +257,7 @@ public class FragmentingHandler : SimpleSource, IDataHandler {
       }
     }
     if( null != packet ) {
-      Handle(packet, return_path);
+      Handle(packet, new FragmentingSender(DEFAULT_SIZE, return_path));
     }
   }
  

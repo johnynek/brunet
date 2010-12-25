@@ -93,6 +93,92 @@ namespace Brunet
         ct.DisconnectionEvent += new EventHandler(this.ConnectionTableChangeHandler);
       }
     }
+    public void BenchmarkFragPing(int fsize, int reps) {
+      List<int> mu_sec_pings = new List<int>();
+      Random my_r = new Random();
+      ArrayList nodes = null;
+      lock(_sync) {
+        //Make a copy
+        nodes = new ArrayList(_node_list);
+      }
+      Stack<Action> pings = new Stack<Action>();
+      for(int i = 0; i < reps; i++) {
+        int idx0 = my_r.Next(0, nodes.Count);
+        int idx1 = my_r.Next(0, nodes.Count);
+        Node n0 = (Node)nodes[idx0];
+        Node n1 = (Node)nodes[idx1];
+        Action ping = delegate() {
+          RpcManager pinger = n0.Rpc;
+          Channel results = new Channel(1, new WriteOnce<DateTime>());
+          results.CloseEvent += delegate(object q, EventArgs a) {
+            try {
+              results.Dequeue();
+              TimeSpan rttts = DateTime.UtcNow - ((WriteOnce<DateTime>)results.State).Value;
+              mu_sec_pings.Add((int)(1000 * rttts.TotalMilliseconds));
+            }
+            catch(Exception x) {
+              Console.WriteLine("target: {0}, Exception: {1}", n1.Address, x);
+            }
+            if( pings.Count > 0 ) {
+              var next = pings.Pop();
+              next();
+            }
+            else {
+              double ave_rtt = 0;
+              foreach(int s in mu_sec_pings) {
+                ave_rtt += (double)s;     
+              }
+              ave_rtt /= mu_sec_pings.Count;
+              double var = 0;
+              foreach(int s in mu_sec_pings) {
+                var += (ave_rtt - (double)s) * (ave_rtt - (double)s);
+              }
+              var /= mu_sec_pings.Count;
+              var stdev = Math.Sqrt(var);
+              mu_sec_pings.Sort();
+              var median = mu_sec_pings[ mu_sec_pings.Count / 2];
+              Console.WriteLine("Average: {0} Median: {1} Stdev: {2} Samples: {3} Reps: {4}",
+                                ave_rtt, median, stdev, mu_sec_pings.Count, reps); 
+            }
+          };
+          try {
+            var sender = new FragmentingSender(1400, new AHExactSender(n0, n1.Address));
+            var data = new byte[fsize];
+            my_r.NextBytes(data);
+            ((WriteOnce<DateTime>)results.State).Value = DateTime.UtcNow;
+            pinger.Invoke(sender, results, "sys:link.Ping", data);
+          }
+          catch(Exception x) {
+            Console.WriteLine("Exception: {0}", x);
+            if( pings.Count > 0 ) {
+              var next = pings.Pop();
+              next();
+            }
+            else {
+              double ave_rtt = 0;
+              foreach(int s in mu_sec_pings) {
+                ave_rtt += (double)s;     
+              }
+              ave_rtt /= mu_sec_pings.Count;
+              double var = 0;
+              foreach(int s in mu_sec_pings) {
+                var += (ave_rtt - (double)s) * (ave_rtt - (double)s);
+              }
+              var /= mu_sec_pings.Count;
+              var stdev = Math.Sqrt(var);
+              mu_sec_pings.Sort();
+              var median = mu_sec_pings[ mu_sec_pings.Count / 2];
+              Console.WriteLine("Average: {0} Median: {1} Stdev: {2} Samples: {3} Reps: {4}",
+                                ave_rtt, median, stdev, mu_sec_pings.Count, reps); 
+            }
+          }
+        };
+        pings.Push(ping);
+      }
+      //Now pop off the first one and go:
+      var first = pings.Pop();
+      first();
+    }
     public void BenchmarkHops(int reps) {
       List<int> hops = new List<int>();
       Random my_r = new Random();
@@ -634,7 +720,7 @@ namespace Brunet
  
         }
       }
-      if( this_command[0] == "abort" ) { 
+      else if( this_command[0] == "abort" ) { 
         //Disconnect a node:
         int node = -1;
         try {
@@ -648,11 +734,11 @@ namespace Brunet
  
         }
       }
-      if( this_command[0] == "P" ) {
+      else if( this_command[0] == "P" ) {
         //Pick a random pair of nodes to ping:
 	Ping(node_list);
       }
-      if( this_command[0] == "BP" ) {
+      else if( this_command[0] == "BP" ) {
         try {
           int reps = Int32.Parse(this_command[1]);
           bst.BenchmarkPing(reps);
@@ -661,7 +747,7 @@ namespace Brunet
           Console.WriteLine(x);
         }
       }
-      if( this_command[0] == "BH" ) {
+      else if( this_command[0] == "BH" ) {
         try {
           int reps = Int32.Parse(this_command[1]);
           bst.BenchmarkHops(reps);
@@ -670,9 +756,22 @@ namespace Brunet
           Console.WriteLine(x);
         }
       }
-      if( this_command[0] == "T" ) {
+      else if( this_command[0] == "FP" ) {
+        try {
+          int fsize = Int32.Parse(this_command[1]);
+          int fcount = Int32.Parse(this_command[2]);
+          bst.BenchmarkFragPing(fsize, fcount);
+        }
+        catch(Exception x) {
+          Console.WriteLine(x);
+        }
+      }
+      else if( this_command[0] == "T" ) {
         //Pick a random pair of nodes to ping:
 	TraceRoute(node_list);
+      }
+      else {
+        Console.WriteLine(String.Format("Unrecognized command: {0}", this_command[0]));
       }
       if( wait_after_connect ) {
         this_command = Console.ReadLine().Split(' ');
