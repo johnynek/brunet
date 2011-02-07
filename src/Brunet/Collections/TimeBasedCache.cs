@@ -103,10 +103,6 @@ namespace Brunet.Collections {
     /// _second.</summary>
     public bool Update(K key, V value)
     {
-      if(_stopped == 1) {
-        throw new Exception("Stopped!");
-      }
-
       bool rv = true;
 
       _sync.AcquireReaderLock(-1);
@@ -141,10 +137,6 @@ namespace Brunet.Collections {
 
     public bool TryGetValue(K key, out V value, out bool update)
     {
-      if(_stopped == 1) {
-        throw new Exception("Stopped!");
-      }
-
       update = false;
       bool rv = false;
       _sync.AcquireReaderLock(-1);
