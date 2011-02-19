@@ -73,8 +73,7 @@ namespace Brunet.Connections {
     override protected bool ConnectionDesired(Address addr)
     {
       bool value;
-      _cache.TryGetValue(addr, out value);
-      return value;
+      return _cache.TryGetValue(addr, out value);
     }
 
     override protected void FailedConnectionAttempt(Address addr)
