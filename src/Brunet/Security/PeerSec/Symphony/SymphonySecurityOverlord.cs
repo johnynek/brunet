@@ -64,13 +64,36 @@ namespace Brunet.Security.PeerSec.Symphony {
           }
           string path = (string) args[0];
           result = _ch.AddCertificate(path);
+        } else if(method.Equals("GetState")) {
+          if(args.Count != 1) {
+            throw new Exception("Not enough arguments");
+          } else if(!(args[0] is string)) {
+            throw new Exception("Argument should be a string");
+          }
+          Address addr = AddressParser.Parse(args[0] as string);
+          SecurityAssociation sa = CheckForSecureSender(addr);
+          if(sa == null) {
+            result = "No SA";
+          } else {
+            result = sa.ToString();
+          }
         } else {
-          throw new Exception("Invalid method");
+          result = new Exception("Invalid method");
         }
       } catch (Exception e) {
-        result = new AdrException(-32602, e);
+        result = e;
       }
       _node.Rpc.SendResult(rs, result);
+    }
+
+    public SecurityAssociation CheckForSecureSender(Address target)
+    {
+      lock(_sync) {
+        if(_address_to_sa.ContainsKey(target)) {
+          return _address_to_sa[target];
+        }
+      }
+      return null;
     }
 
     // Provides an Exact AH Secure Sender using the default SPI  given an address
