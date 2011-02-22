@@ -436,8 +436,17 @@ namespace Brunet.Security.PeerSec {
 
     public override string ToString() 
     {
-      return String.Format("PeerSecAssociation for {0}, SPI: {1}, State: {2}",
-          Sender, SPI, State);
+      var rdhe = RDHE;
+      bool rdhe_set = false;
+      if(rdhe != null) {
+        rdhe_set = rdhe.Value != null;
+      }
+
+      return String.Format("PeerSecAssociation for {0}, SPI: {1}, " +
+          "State: {2}, LastUpdate: {3}, RemoteCookie: {4}, RDHE: {5}, " +
+          "LocalCertificate: {6}, RemoteCertificate: {7}, HashVerified: {8}",
+          Sender, SPI, State, LastUpdate, RemoteCookie != null, rdhe_set,
+          LocalCertificate != null, RemoteCertificate != null, HashVerified);
     }
 
     ///<summary>This closes the SA and cleans up its state.</summary>
