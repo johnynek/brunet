@@ -864,13 +864,47 @@ namespace Ipop {
     }
 
     public void HandleRpc(ISender caller, string method, IList args, object rs) {
+      object result = null;
       if(method.Equals("NoSuchMapping")) {
         string sip = args[0] as string;
         MemBlock ip = MemBlock.Reference(Utils.StringToBytes(sip, '.'));
         MappingMissing(ip);
+        result = true;
+      } else if(method.Equals("GetMapping")) {
+        string sip = args[0] as string;
+        MemBlock ip = MemBlock.Reference(Utils.StringToBytes(sip, '.'));
+        try {
+          result = _address_resolver.Resolve(ip).ToString();
+        } catch(AddressResolutionException ex) {
+          result = ex.Issue.ToString();
+        }
+        if(result == null) {
+          result = "No mapping";
+        }
+      } else if(method.Equals("GetState")) {
+        string sip = args[0] as string;
+        MemBlock ip = MemBlock.Reference(Utils.StringToBytes(sip, '.'));
+        Address addr = null;
+        try {
+          addr = _address_resolver.Resolve(ip);
+        } catch {
+        }
+        if(addr == null) {
+          AppNode.Node.Rpc.SendResult(rs, "No mapping");
+          return;
+        }
+        Connection con = AppNode.Node.ConnectionTable.GetConnection(ConnectionType.Structured, addr);
+        if(_secure_senders) {
+          SecurityAssociation sa = AppNode.SymphonySecurityOverlord.CheckForSecureSender(addr);
+          result = String.Format("Mapping: {0}, Connection: {1}, Security: {2}",
+              addr, con, sa);
+        } else {
+          result = String.Format("Mapping: {0}, Connection: {1}", addr, con);
+        }
       } else {
-        throw new Exception("Invalid method!");
+        result = new Exception("Invalid method!");
       }
+      AppNode.Node.Rpc.SendResult(rs, result);
     }
 
     protected virtual bool MappingMissing(MemBlock ip)
