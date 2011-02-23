@@ -110,7 +110,7 @@ namespace Brunet.Connections {
       Connector con = o as Connector;
       Address addr = con.State as Address;
       if(addr != null && con.ReceivedCTMs.Count == 0) {
-        FailedConnectionAttempt(addr);
+        CheckForConnection(addr);
       }
     }
 
@@ -123,6 +123,13 @@ namespace Brunet.Connections {
       }
       Linker linker = o as Linker;
       Address addr = linker.Target;
+      CheckForConnection(addr);
+    }
+
+    /// <summary>Checks the connection table for a connection.  We call the
+    /// appropriate abstract method based upon the result.</summary>
+    protected void CheckForConnection(Address addr)
+    {
       Connection con = _node.ConnectionTable.GetConnection(MainType, addr);
 
       if(con == null) {
