@@ -252,7 +252,6 @@ namespace Brunet.Security.PeerSec {
         // authentication codes.  So to determine the order, we say whomever has
         // the smallest gets the first set of keys.
         byte[] rdhe = (byte[]) RDHE.Value;
-        RDHE = null;
         byte[] key = _dh.DecryptKeyExchange(rdhe);
         _dh.Clear();
         _dh = null;
@@ -260,7 +259,6 @@ namespace Brunet.Security.PeerSec {
         while(i < _ldhe.Length && _ldhe[i] == rdhe[i]) i++;
         bool same = i == _ldhe.Length;
         bool first = !same && (_ldhe[i] < rdhe[i]);
-        _ldhe = null;
         // Gathering our security parameter objects
         SecurityPolicy sp = SecurityPolicy.GetPolicy(_spi);
         SymmetricAlgorithm in_sa = sp.CreateSymmetricAlgorithm();
@@ -445,8 +443,9 @@ namespace Brunet.Security.PeerSec {
       return String.Format("PeerSecAssociation for {0}, SPI: {1}, " +
           "State: {2}, LastUpdate: {3}, RemoteCookie: {4}, RDHE: {5}, " +
           "LocalCertificate: {6}, RemoteCertificate: {7}, HashVerified: {8}",
-          Sender, SPI, State, LastUpdate, RemoteCookie != null, rdhe_set,
-          LocalCertificate != null, RemoteCertificate != null, HashVerified);
+          Sender, SPI, State, LastUpdate, RemoteCookie != null,
+          RDHE.Value != null, LocalCertificate != null,
+          RemoteCertificate != null, HashVerified);
     }
 
     ///<summary>This closes the SA and cleans up its state.</summary>
