@@ -99,9 +99,13 @@ function start()
     exit
   fi
 
-  if test -e $DIR/etc/dht_proxy; then
+  $DIR/bin/load_dht_proxy.py $DIR/etc/dht_proxy &> /dev/null
+  result=$?
+  while [[ $result == 1 && $pid ]]; do
     $DIR/bin/load_dht_proxy.py $DIR/etc/dht_proxy &> /dev/null
-  fi
+    result=$?
+    pid=`get_pid DhtIpopNode.exe`
+  done
 
   renice -19 -p $pid &> /dev/null
 
