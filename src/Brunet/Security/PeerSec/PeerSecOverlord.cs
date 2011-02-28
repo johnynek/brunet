@@ -676,7 +676,7 @@ namespace Brunet.Security.PeerSec {
     /// <summary>We take in an object, take its hash code, concatenate it
     /// to our cookie, then sha hash the resulting value, creating the remote
     /// cookie.</summary>
-    public MemBlock CalculateCookie(object o) {
+    virtual public MemBlock CalculateCookie(object o) {
       int hash = o.GetHashCode();
       byte[] data = new byte[4 + _cookie.Length];
       _cookie.CopyTo(data, 0);

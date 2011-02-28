@@ -153,5 +153,14 @@ namespace Brunet.Security.PeerSec.Symphony {
         base.RemoveSA(sa);
       }
     }
+
+    override public MemBlock CalculateCookie(object o)
+    {
+      if(o is AHSender) {
+        AHSender ah = o as AHSender;
+        o = ah.Destination;
+      }
+      return base.CalculateCookie(o);
+    }
   }
 }
