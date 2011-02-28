@@ -201,6 +201,16 @@ namespace Brunet.Security.PeerSec {
       _signature = MemBlock.Reference(decrypted, pos, decrypted.Length - pos);
       return true;
     }
+
+    override public string ToString()
+    {
+      try {
+        return String.Format("SecurityDataMessage: SPI: {0}, Epoch: {1}, SeqID: {2}, Data length: {3}",
+           SPI, Epoch, Seqid, Data.Length);
+      } catch {
+        return "SecurityDataMessage";
+      }
+    }
   }
 
 #if BRUNET_NUNIT

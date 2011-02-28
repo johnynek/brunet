@@ -267,15 +267,20 @@ namespace Brunet.Security.PeerSec {
         sa.HandleData(b, return_path, null);
       } catch(Exception e) {
         if(sender_to_sa == null && !SecurityPolicy.Supports(sdm.SPI)) {
-          ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, "Invalid SPI: " + sdm.SPI);
+          ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, String.Format(
+                "Unsupported SPI, from {0}, message: {1}", return_path, sdm));
         } else {
           if(sa == null) {
-            ProtocolLog.WriteIf(ProtocolLog.Security, "No SA for: " + return_path);
+            ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, String.Format(
+                  "No SA, from {0}, message: {1}", return_path, sdm));
           } else if(sa.Closed) {
-            ProtocolLog.WriteIf(ProtocolLog.Security, String.Format("SA, {0}, has been closed.", sa));
+            ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, String.Format(
+                  "SA, {0}, has been closed, from {1}, message: {2}.", sa,
+                  return_path, sdm));
           } else {
             ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, String.Format(
-                  "SA, {0}, causes unhandled exception: {1}", sa, e));
+                  "SA, {0}, from {1}, message: {2}, causes unhandled exception : {3}",
+                  sa, return_path, sdm, e));
           }
           NoSuchSA(sdm.SPI, return_path);
         }
@@ -298,7 +303,7 @@ namespace Brunet.Security.PeerSec {
       try {
         HandleControl(payload, returnpath);
       } catch(Exception e) {
-        ProtocolLog.WriteIf(ProtocolLog.Security, e.ToString());
+        ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, e.ToString());
         done = true;
       }
 
@@ -348,14 +353,22 @@ namespace Brunet.Security.PeerSec {
       MemBlock calc_cookie = CalculateCookie(low_level_sender);
 
       if(scm.Version != Version) {
-        throw new Exception("Invalid version: " + scm.Version);
+        ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, String.Format(
+              "Invalid version expected {0}, found {1}, from {2}, message: {3}",
+              Version, scm.Version, low_level_sender, scm));
+        return;
       } else if(!SecurityPolicy.Supports(scm.SPI)) {
-        throw new Exception("No support for SPI: " + scm.SPI);
-      } else if(!scm.RemoteCookie.Equals(calc_cookie)) {
-        if(scm.Type != SecurityControlMessage.MessageType.Cookie &&
-            scm.Type != SecurityControlMessage.MessageType.NoSuchSA) {
-          throw new Exception("Invalid cookie!");
-        }
+        ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, String.Format(
+              "Unsupported SPI, from {0}, message: {1}", low_level_sender, scm));
+        return;
+      } else if((scm.Type != SecurityControlMessage.MessageType.Cookie &&
+            scm.Type != SecurityControlMessage.MessageType.NoSuchSA) &&
+          !scm.RemoteCookie.Equals(calc_cookie))
+      {
+        ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, String.Format(
+              "Invalid cookie, Expected {0}, Found {1}, From {2}, Message {3}",
+              calc_cookie, scm.RemoteCookie, low_level_sender, scm));
+        return;
       }
 
       SecurityControlMessage scm_reply = new SecurityControlMessage();
@@ -387,8 +400,9 @@ namespace Brunet.Security.PeerSec {
           ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, GetHashCode() + " SA closed, clearing SA state! " + sa);
           sa = null;
         } else if(sa.State == SecurityAssociation.States.Active) {
-          ProtocolLog.WriteIf(ProtocolLog.Security, String.Format("{0}, {1}: {2}",
-              GetHashCode(), "SA Active, received message", scm.Type));
+          ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, String.Format(
+                "{0}, {1}: {2}", GetHashCode(), "SA Active, received message",
+                scm.Type));
           return;
         }
       }
@@ -416,7 +430,7 @@ namespace Brunet.Security.PeerSec {
           default:
             throw new Exception("Invalid message!");
         }
-      } catch {
+      } catch(Exception e) {
         if(scm.Type == SecurityControlMessage.MessageType.DHEWithCertificateAndCAs ||
             scm.Type == SecurityControlMessage.MessageType.DHEWithCertificate ||
             scm.Type == SecurityControlMessage.MessageType.Confirm)
@@ -425,9 +439,11 @@ namespace Brunet.Security.PeerSec {
         }
         if(sa != null && sa.Closed) {
           ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, GetHashCode() + " SA closed! " + sa);
-        } else {
-          throw;
+          return;
         }
+        ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, String.Format(
+              "Error in {0}, unhandled exception from {1}, message: {2}, exception: {3}",
+              GetHashCode(), low_level_sender, scm, e));
       }
     }
 

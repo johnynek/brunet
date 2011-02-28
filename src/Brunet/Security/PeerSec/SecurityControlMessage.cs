@@ -415,6 +415,15 @@ namespace Brunet.Security.PeerSec {
       byte[] signature = rsa.SignData(unsigned_data, hash);
       Signature = MemBlock.Reference(signature); 
     }
+
+    override public string ToString() {
+      try {
+        return String.Format("SecurityControlMessage: V{0}, SPI-{1}, Type: {2}",
+            Version, SPI, Type);
+      } catch {
+        return "SecurityControlMessage";
+      }
+    }
   }
 
 #if BRUNET_NUNIT
