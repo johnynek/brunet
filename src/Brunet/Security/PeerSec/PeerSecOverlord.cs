@@ -399,7 +399,11 @@ namespace Brunet.Security.PeerSec {
         if(sa.Closed) {
           ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, GetHashCode() + " SA closed, clearing SA state! " + sa);
           sa = null;
-        } else if(sa.State == SecurityAssociation.States.Active) {
+        } else if(sa.State == SecurityAssociation.States.Active &&
+            // Two nodes can demand a confirm at the same time, if this
+            // message doesn't pass, then one side will close due to timeout
+            scm.Type != SecurityControlMessage.MessageType.Confirm)
+        {
           ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, String.Format(
                 "{0}, {1}: {2}", GetHashCode(), "SA Active, received message",
                 scm.Type));
