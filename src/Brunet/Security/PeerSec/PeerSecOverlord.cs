@@ -265,16 +265,19 @@ namespace Brunet.Security.PeerSec {
         sender_to_sa = _spi[sdm.SPI];
         sa = sender_to_sa[return_path];
         sa.HandleData(b, return_path, null);
-      } catch {
+      } catch(Exception e) {
         if(sender_to_sa == null && !SecurityPolicy.Supports(sdm.SPI)) {
-          throw new Exception("Invalid SPI: " + sdm.SPI);
-        } else if(sa == null) {
-          NoSuchSA(sdm.SPI, return_path);
-          throw new Exception("No SA for: " + return_path);
-        } else if(sa.Closed) {
-          throw new Exception("SA has been closed.");
+          ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, "Invalid SPI: " + sdm.SPI);
         } else {
-          throw;
+          if(sa == null) {
+            ProtocolLog.WriteIf(ProtocolLog.Security, "No SA for: " + return_path);
+          } else if(sa.Closed) {
+            ProtocolLog.WriteIf(ProtocolLog.Security, String.Format("SA, {0}, has been closed.", sa));
+          } else {
+            ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, String.Format(
+                  "SA, {0}, causes unhandled exception: {1}", sa, e));
+          }
+          NoSuchSA(sdm.SPI, return_path);
         }
       }
     }
@@ -311,7 +314,8 @@ namespace Brunet.Security.PeerSec {
       }
 
       PeerSecAssociation sa = state as PeerSecAssociation;
-      sa.Failure();
+      ProtocolLog.WriteIf(ProtocolLog.Security, "Forcing reset due to timeout: " + sa);
+      sa.Reset();
     }
 
     /// <summary>This is the control state machine.  There are three paths in
@@ -366,10 +370,25 @@ namespace Brunet.Security.PeerSec {
       } catch { }
 
       if(sa != null) {
-        sa.Reset();
+        // Reset cases where no state has been set yet or state is attempting
+        // to be re-established, if other message types arrive, they will
+        // expect pre-set state and will fail.  The mechanisms instilled thus
+        // far should prevent this, but this makes it explicit.  Now only
+        // wayward messages will arrive to other states.
+        if(scm.Type == SecurityControlMessage.MessageType.NoSuchSA ||
+            scm.Type == SecurityControlMessage.MessageType.Cookie ||
+            scm.Type == SecurityControlMessage.MessageType.CookieResponse ||
+            scm.Type == SecurityControlMessage.MessageType.DHEWithCertificateAndCAs)
+        {
+          sa.TryReset();
+        }
+
         if(sa.Closed) {
-          throw new Exception("SA closed!");
+          ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, GetHashCode() + " SA closed, clearing SA state! " + sa);
+          sa = null;
         } else if(sa.State == SecurityAssociation.States.Active) {
+          ProtocolLog.WriteIf(ProtocolLog.Security, String.Format("{0}, {1}: {2}",
+              GetHashCode(), "SA Active, received message", scm.Type));
           return;
         }
       }
@@ -389,7 +408,7 @@ namespace Brunet.Security.PeerSec {
             HandleControlDHEWithCertificateAndCAs(sa, scm, scm_reply, return_path, low_level_sender);
             break;
           case SecurityControlMessage.MessageType.DHEWithCertificate:
-            HandleControlDHEWithCertificates(sa, scm, scm_reply, return_path, low_level_sender);
+            HandleControlDHEWithCertificate(sa, scm, scm_reply, return_path, low_level_sender);
             break;
           case SecurityControlMessage.MessageType.Confirm:
             HandleControlConfirm(sa, scm, scm_reply, return_path, low_level_sender);
@@ -398,8 +417,14 @@ namespace Brunet.Security.PeerSec {
             throw new Exception("Invalid message!");
         }
       } catch {
+        if(scm.Type == SecurityControlMessage.MessageType.DHEWithCertificateAndCAs ||
+            scm.Type == SecurityControlMessage.MessageType.DHEWithCertificate ||
+            scm.Type == SecurityControlMessage.MessageType.Confirm)
+        {
+          NoSuchSA(scm.SPI, return_path);
+        }
         if(sa != null && sa.Closed) {
-          throw new Exception("SA closed.");
+          ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, GetHashCode() + " SA closed! " + sa);
         } else {
           throw;
         }
@@ -561,7 +586,7 @@ namespace Brunet.Security.PeerSec {
     /// <param name="return_path">Where to send the result.</param>
     /// <param name="low_level_sender">We expect the return_path to not be an edge or
     /// some other type of "low level" sender, so this contains the parsed out value.</param>
-    protected void HandleControlDHEWithCertificates(PeerSecAssociation sa,
+    protected void HandleControlDHEWithCertificate(PeerSecAssociation sa,
         SecurityControlMessage scm, SecurityControlMessage scm_reply,
         ISender return_path, ISender low_level_sender)
     {

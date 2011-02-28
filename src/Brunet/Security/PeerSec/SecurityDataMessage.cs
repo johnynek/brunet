@@ -138,7 +138,7 @@ namespace Brunet.Security.PeerSec {
         NumberSerializer.WriteInt(_seqid, b, pos);
         MemBlock header = MemBlock.Reference(b);
         _icpacket = new CopyList(header, _encrypted_data);
-      } catch(Exception e) {
+      } catch(Exception) {
         throw new Exception("Missing data to build packet!");
       }
       base.UpdatePacket();

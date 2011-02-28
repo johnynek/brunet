@@ -93,7 +93,6 @@ namespace Brunet.Security.PeerSec {
     protected int _called_enable;
     protected WriteOnceX509 _remote_cert;
     protected WriteOnceX509 _local_cert;
-    protected bool _just_created;
 
     ///<summary>Local half of the DHE</summary>
     public MemBlock LDHE {
@@ -147,7 +146,6 @@ namespace Brunet.Security.PeerSec {
       _closed = 0;
       _active = false;
       _spi = spi;
-      _last_update = DateTime.MinValue;
       _state = States.Waiting;
       Reset();
     }
@@ -168,22 +166,31 @@ namespace Brunet.Security.PeerSec {
 
     ///<summary>This is called when we want to reset the state of the SA after
     ///an equivalent time of two timeouts has occurred.</summary>
-    public bool Reset() {
+    public bool TryReset() {
+      DateTime now = DateTime.UtcNow;
+
       lock(_sync) {
-        DateTime now = DateTime.UtcNow;
         // State is not reset if:
         // - It has been done within the past 120 seconds
         // - This is closed
         // - A packet has been received since the last SA check
-        if((_last_update != DateTime.MinValue &&
-              _last_update.AddSeconds(120) > now &&
+        if((_last_update.AddSeconds(120) > now &&
               State != States.Active) ||
             _closed == 1 ||
             (_receiving && State == States.Active))
         {
           return false;
         }
-        
+        _last_update = DateTime.UtcNow;
+      }
+
+      ProtocolLog.WriteIf(ProtocolLog.Security, "TryReset successful in " + this);
+      Reset();
+      return true;
+    }
+
+    public void Reset() {
+      lock(_sync) {
         _last_update = DateTime.UtcNow;
         _last_called_request_update = DateTime.UtcNow;
 
@@ -199,11 +206,9 @@ namespace Brunet.Security.PeerSec {
         _called_enable = 0;
         _receiving = true;
         _sending = true;
-        _just_created = true;
       }
 
       UpdateState(States.Active, States.Updating);
-      return true;
     }
 
     ///<summary>Verifies the hash to the DHEWithCertificateAndCAsOutHash.</summary>
@@ -412,34 +417,8 @@ namespace Brunet.Security.PeerSec {
       return true;
     }
 
-    /// <summary>For some reason we failed during a security exchange.  Since
-    /// we only close in the case of Waiting and not Update, we don't call Close
-    /// we call this.</summary>
-    public void Failure()
-    {
-      bool close = false;
-      lock(_sync) {
-        if(State == States.Updating) {
-          UpdateState(States.Updating, States.Active);
-        }
-
-        if(State != States.Active) {
-          close = true;
-        }
-      }
-      if(close) {
-        Close("Failed, probably due to timeout");
-      }
-    }
-
     public override string ToString() 
     {
-      var rdhe = RDHE;
-      bool rdhe_set = false;
-      if(rdhe != null) {
-        rdhe_set = rdhe.Value != null;
-      }
-
       return String.Format("PeerSecAssociation for {0}, SPI: {1}, " +
           "State: {2}, LastUpdate: {3}, RemoteCookie: {4}, RDHE: {5}, " +
           "LocalCertificate: {6}, RemoteCertificate: {7}, HashVerified: {8}",

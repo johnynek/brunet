@@ -396,7 +396,7 @@ namespace Brunet.Security.PeerSec {
           _signature.CopyTo(b, pos);
         }
         _packet = MemBlock.Reference(b);
-      } catch(Exception e) {
+      } catch(Exception) {
         throw new Exception("Missing data for SecurityControlMessage!");
       }
       _update_packet = false;
@@ -421,6 +421,21 @@ namespace Brunet.Security.PeerSec {
   /// [version][type][id local][id remote][cookie local][cookie remote][data length][data][signature]
   [TestFixture]
   public class SecurityControlMessageTest {
+    [Test]
+    public void NoSuchSA() {
+      SecurityControlMessage scm = new SecurityControlMessage();
+      scm.Version = 5;
+      scm.SPI = 10;
+      scm.Type = SecurityControlMessage.MessageType.NoSuchSA;
+      SecurityControlMessage scm_from_packet = new SecurityControlMessage(scm.Packet);
+      Assert.AreEqual(scm.Version, scm_from_packet.Version, "Version");
+      Assert.AreEqual(scm.SPI, scm_from_packet.SPI, "SPI");
+      Assert.AreEqual(scm.Type, scm_from_packet.Type, "Type");
+      Assert.AreEqual(5, scm_from_packet.Version, "Version");
+      Assert.AreEqual(10, scm_from_packet.SPI, "SPI");
+      Assert.AreEqual(SecurityControlMessage.MessageType.NoSuchSA, scm_from_packet.Type, "Type");
+    }
+
     // build one from scratch
     // parse it using SCM
     // cause a rebuild and test the data block again by parsing it using SCM
