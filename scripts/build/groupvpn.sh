@@ -99,13 +99,15 @@ function start()
     exit
   fi
 
-  $DIR/bin/load_dht_proxy.py $DIR/etc/dht_proxy &> /dev/null
-  result=$?
-  while [[ $result == 1 && $pid ]]; do
+  if [[ -e $DIR/etc/dht_proxy ]]; then
     $DIR/bin/load_dht_proxy.py $DIR/etc/dht_proxy &> /dev/null
     result=$?
-    pid=`get_pid DhtIpopNode.exe`
-  done
+    while [[ $result == 1 && $pid && -e $DIR/etc/dht_proxy ]]; do
+      $DIR/bin/load_dht_proxy.py $DIR/etc/dht_proxy &> /dev/null
+      result=$?
+      pid=`get_pid DhtIpopNode.exe`
+    done
+  fi
 
   renice -19 -p $pid &> /dev/null
 
@@ -151,6 +153,6 @@ case "$1" in
     ;;
   *)
     echo "usage: start, stop, restart, trace"
-  ;;
+    ;;
 esac
 exit 0
