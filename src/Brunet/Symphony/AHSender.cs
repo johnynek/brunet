@@ -226,7 +226,6 @@ public class AHHeader : ICopyable {
 public class AHSender : ISender {
   static AHSender() {
     SenderFactory.Register("ah", CreateInstance);
-    _buf_alloc = new BufferAllocator(System.UInt16.MaxValue);
   }
 
   protected static AHSender CreateInstance(object node_ctx, string uri) {
@@ -238,16 +237,13 @@ public class AHSender : ISender {
     return new AHSender(n, target, option);
   }
 
-  public readonly Node Node;
+  public readonly StructuredNode Node;
   public readonly Address Destination;
   public readonly Address Source;
   public readonly short Hops;
   public readonly short Ttl;
   public readonly ushort Options;
   public readonly short HopsTaken;
-
-  private static BufferAllocator _buf_alloc;
-
   /*
    * Every packet comes from somewhere, it is either locally generated,
    * or it came from an edge.  This ISender sends "back" from where the
@@ -256,9 +252,7 @@ public class AHSender : ISender {
    * If this a local packet, it was Received from the local node
    */
   public readonly ISender ReceivedFrom;
-  //This is the serialized header:
-  protected MemBlock _header;
-  protected int _header_length;
+  public readonly AHHeader Header;
 
   public AHSender(Node n, Address destination, ushort options)
   : this( n, n, destination, DefaultTTLFor(n.NetworkSize), options) {
@@ -276,7 +270,10 @@ public class AHSender : ISender {
   }
 
   public AHSender(Node n, ISender from, Address destination, short ttl, ushort options, short hops_taken) {
-    Node = n;
+    Node = n as StructuredNode;
+    if(Node == null) {
+      throw new Exception("Node must be a structured node");
+    }
     ReceivedFrom = from;
     //Here are the fields in the order they appear:
     Ttl = ttl;
@@ -284,7 +281,9 @@ public class AHSender : ISender {
     Destination = destination;
     Options = options;
     HopsTaken = hops_taken;
+    Header = new AHHeader(Hops, Ttl, Source, Destination, Options);
   }
+
   /**
    * This is probably the most commonly used AHSender
    */
@@ -341,55 +340,7 @@ public class AHSender : ISender {
   }
 
   public void Send(ICopyable data) {
-    /*
-     * Assemble an AHPacket:
-     */
-    if( _header == null ) {
-      AHHeader ahh = new AHHeader(Hops, Ttl, Source, Destination, Options);
-      _header = MemBlock.Copy(new CopyList( PType.Protocol.AH, ahh));
-      _header_length = _header.Length;
-    }
-    byte[] ah_packet;
-    int packet_length;
-    int packet_offset;
-
-    //Try to get the shared BufferAllocator, useful when
-    //we don't know how big the data is, which in general
-    //is just as expensive as doing a CopyTo...
-    BufferAllocator ba = Interlocked.Exchange<BufferAllocator>(ref _buf_alloc, null);
-    if( ba != null ) {
-      try {
-        ah_packet = ba.Buffer;
-        packet_offset = ba.Offset;
-        int tmp_off = packet_offset;
-        tmp_off += _header.CopyTo(ah_packet, packet_offset);
-        tmp_off += data.CopyTo(ah_packet, tmp_off);
-        packet_length = tmp_off - packet_offset;
-        ba.AdvanceBuffer(packet_length);
-      }
-      catch(System.Exception x) {
-        throw new SendException(false, "could not write the packet, is it too big?", x);
-      }
-      finally {
-        //Put the BA back
-        Interlocked.Exchange<BufferAllocator>(ref _buf_alloc, ba);
-      }
-    }
-    else {
-      //Oh well, someone else is using the buffer, just go ahead
-      //and allocate new memory:
-      packet_offset = 0;
-      packet_length = _header_length + data.Length;
-      ah_packet = new byte[ packet_length ];
-      int off_to_data = _header.CopyTo(ah_packet, 0);
-      data.CopyTo(ah_packet, off_to_data);
-    }
-    MemBlock mb_packet = MemBlock.Reference(ah_packet, packet_offset, packet_length);
-    /*
-     * Now we announce this packet, the AHHandler will
-     * handle routing it for us
-     */
-    Node.HandleData(mb_packet, ReceivedFrom, this);
+    Node.AHHandler.HandleData(Header, data, ReceivedFrom, this);
   }
 
   public override string ToString() {
@@ -629,6 +580,7 @@ public class DirectionalRouting : AHRoutingAlgorithm {
  */
 public class AHHandler : IDataHandler {
 
+  static private BufferAllocator _ba = new BufferAllocator(System.UInt16.MaxValue);
   protected readonly Node _n;
   protected AHState _state;
 
@@ -703,6 +655,7 @@ public class AHHandler : IDataHandler {
     _n.ConnectionTable.ConnectionEvent += this.ResetState;
     _n.ConnectionTable.DisconnectionEvent += this.ResetState;
   }
+
   protected void ResetState(object contab, EventArgs arg) {
     ConnectionEventArgs cea = (ConnectionEventArgs)arg;
     ConnectionList cel = cea.CList;
@@ -726,21 +679,15 @@ public class AHHandler : IDataHandler {
     }
     while(old_state != state);
   }
-  /**
-   * Here we handle routing AHPackets
-   */
-  public void HandleData(MemBlock data, ISender ret_path, object st) {
-    AHState state = _state; //Read the state, it can't change after the read
-    var header = new AHHeader(data);
-    var payload = data.Slice(header.Length);
 
+  public void HandleData(AHHeader header, ICopyable payload, ISender ret_path, object st) {
+    AHState state = _state; //Read the state, it can't change after the read
     Connection next_con;
     //Check to see if we can use a Leaf connection:
     int dest_idx = state.Leafs.IndexOf(header.Destination);
     if( dest_idx >= 0 ) {
       next_con = state.Leafs[dest_idx];
-    }
-    else {
+    } else {
       var alg = state.GetRoutingAlgo(header);
       Pair<Connection, bool> result = alg.NextConnection(ret_path as Edge, header);
       if( result.Second ) {
@@ -748,7 +695,27 @@ public class AHHandler : IDataHandler {
         var resp_send = new AHSender(_n, ret_path, header.Source, 
                                        AHSender.DefaultTTLFor(_n.NetworkSize),
                                        AHHeader.Options.Exact, header.Hops);
-        _n.HandleData( payload, resp_send, this); 
+        MemBlock data = payload as MemBlock;
+        if(data == null) {
+          // Try to get the shared BufferAllocator, useful when we don't know
+          // how big the data is, which in general is just as expensive as
+          // doing a CopyTo...
+          BufferAllocator ba = Interlocked.Exchange<BufferAllocator>(ref _ba, null);
+          if( ba != null ) {
+            try {
+              int length = payload.CopyTo(ba.Buffer, ba.Offset);
+              data = MemBlock.Reference(ba.Buffer, ba.Offset, length);
+              ba.AdvanceBuffer(length);
+            } catch(System.Exception x) {
+              throw new SendException(false, "could not write the packet, is it too big?", x);
+            } finally {
+              Interlocked.Exchange<BufferAllocator>(ref _ba, ba);
+            }
+          } else {
+            data = MemBlock.Copy(payload);
+          }
+        }
+        _n.HandleData( data, resp_send, this); 
       }
       next_con = result.First;
     }
@@ -765,6 +732,15 @@ public class AHHandler : IDataHandler {
         //Just drop the packet...
       }
     }
+  }
+
+  /**
+   * Here we handle routing AHPackets
+   */
+  public void HandleData(MemBlock data, ISender ret_path, object st) {
+    var header = new AHHeader(data);
+    var payload = data.Slice(header.Length);
+    HandleData(header, payload, ret_path, st);
   }
 }
 

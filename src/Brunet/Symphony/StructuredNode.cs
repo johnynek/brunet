@@ -68,6 +68,7 @@ namespace Brunet.Symphony
 
     protected readonly IPHandler _iphandler;
     public override IPHandler IPHandler { get { return _iphandler; } }
+    public readonly AHHandler AHHandler;
 
     public override bool IsConnected {
       get {
@@ -108,8 +109,8 @@ namespace Brunet.Symphony
        */
       /// Turn on Packet Forwarding Support :
       GetTypeSource(PType.Protocol.Forwarding).Subscribe(new PacketForwarder(this), null);
-      //Handles AHRouting:
-      GetTypeSource(PType.Protocol.AH).Subscribe(new AHHandler(this), this);
+      AHHandler = new AHHandler(this);
+      GetTypeSource(PType.Protocol.AH).Subscribe(AHHandler, this);
       GetTypeSource(PType.Protocol.Echo).Subscribe(new EchoHandler(), this);
       
       //Add the standard RPC handlers:
